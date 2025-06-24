@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup.dart';
+import 'dashboard.dart'; // Create this file separately
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,7 +31,6 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
       );
 
-      // 🔥 Get user document from Firestore
       final userDoc =
           await _firestore
               .collection('user_details')
@@ -42,9 +42,13 @@ class _LoginPageState extends State<LoginPage> {
         final userName = userData?['name'] ?? 'No Name';
         final email = userData?['email'];
 
-        ScaffoldMessenger.of(
+        // ✅ Navigate to dashboard
+        Navigator.pushReplacement(
           context,
-        ).showSnackBar(SnackBar(content: Text('Welcome $userName ($email)')));
+          MaterialPageRoute(
+            builder: (_) => DashboardPage(userName: userName, email: email),
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('User details not found in Firestore')),
@@ -69,6 +73,7 @@ class _LoginPageState extends State<LoginPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
+              // Login Card
               Container(
                 margin: const EdgeInsets.all(20),
                 padding: const EdgeInsets.symmetric(
@@ -112,6 +117,8 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextStyle(color: Colors.grey),
                     ),
                     const SizedBox(height: 30),
+
+                    // Email Field
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
@@ -121,6 +128,8 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // Password Field
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -131,9 +140,12 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
+
                     if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 15),
+
+                    // Sign In Button
                     SizedBox(
                       width: double.infinity,
                       height: 45,
@@ -152,6 +164,8 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
+
+                    // Sign up Text Button
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -165,7 +179,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-              // Demo Mode
+              // Demo Mode Card
               Container(
                 margin: const EdgeInsets.only(top: 10),
                 padding: const EdgeInsets.symmetric(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup.dart';
 
 class LoginPage extends StatefulWidget {
@@ -11,6 +12,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
@@ -23,14 +25,31 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await _auth.signInWithEmailAndPassword(
+      final credential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Login successful')));
+      // 🔥 Get user document from Firestore
+      final userDoc =
+          await _firestore
+              .collection('user_details')
+              .doc(credential.user!.uid)
+              .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        final userName = userData?['name'] ?? 'No Name';
+        final email = userData?['email'];
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Welcome $userName ($email)')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User details not found in Firestore')),
+        );
+      }
     } on FirebaseAuthException catch (e) {
       setState(() {
         _error = e.message;

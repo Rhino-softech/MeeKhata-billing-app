@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'login.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -10,6 +12,8 @@ class SignupPage extends StatefulWidget {
 
 class _SignupPageState extends State<SignupPage> {
   final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -30,16 +34,27 @@ class _SignupPageState extends State<SignupPage> {
     });
 
     try {
-      await _auth.createUserWithEmailAndPassword(
+      UserCredential userCred = await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      // Save user details in Firestore
+      await _firestore.collection('user_details').doc(userCred.user!.uid).set({
+        'uid': userCred.user!.uid,
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'created_at': FieldValue.serverTimestamp(),
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Account created successfully")),
       );
 
-      Navigator.pop(context); // return to login
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
     } on FirebaseAuthException catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -148,6 +163,16 @@ class _SignupPageState extends State<SignupPage> {
                             )
                             : const Text("Sign Up"),
                   ),
+                ),
+                const SizedBox(height: 15),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                    );
+                  },
+                  child: const Text("Already have an account? Log in"),
                 ),
               ],
             ),

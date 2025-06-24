@@ -1,0 +1,35 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "billing-app-4ddfa",
+          "appId": "1:878413363701:android:bd7e72b6cc3d43a5f048bc",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "billing-app-4ddfa",
+          "configurations": {
+            "android": "1:878413363701:android:bd7e72b6cc3d43a5f048bc",
+            "ios": "1:878413363701:ios:206ddbe8a43be82bf048bc",
+            "windows": "1:878413363701:web:7bd104114d1fe6ccf048bc"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "dataconnect": {
+      "dataDir": "dataconnect/.dataconnect/pgliteData"
+    }
+  },
+  "dataconnect": {
+    "source": "dataconnect"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

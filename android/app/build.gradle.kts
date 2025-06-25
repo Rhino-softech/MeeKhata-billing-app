@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    ndkVersion = "27.0.12077973"  // ✅ Fixed here
+    ndkVersion = "27.0.12077973"
     namespace = "com.example.billing_app"
     compileSdk = flutter.compileSdkVersion
 
@@ -33,11 +33,18 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
+
 
 
 flutter {

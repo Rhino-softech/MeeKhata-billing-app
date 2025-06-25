@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'student_page.dart'; // Import the student page
 
 class DashboardPage extends StatelessWidget {
   final String? userName;
@@ -56,7 +57,7 @@ class DashboardPage extends StatelessWidget {
         children: [
           const SizedBox(height: 10),
 
-          // Tab Bar
+          // Tab Bar with Students navigation
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -78,7 +79,23 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Text('Students', style: TextStyle(color: Colors.grey)),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const StudentPage(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Students',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
             ],
           ),
 

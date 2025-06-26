@@ -3,8 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'add_student_page.dart';
 
-class StudentPage extends StatelessWidget {
+class StudentPage extends StatefulWidget {
   const StudentPage({super.key});
+
+  @override
+  State<StudentPage> createState() => _StudentPageState();
+}
+
+class _StudentPageState extends State<StudentPage> {
+  String _searchQuery = '';
+  String _selectedStatus = 'All Status';
 
   String getStatus(double total, double paid, DateTime dueDate) {
     if (paid >= total) return 'Paid';
@@ -57,6 +65,11 @@ class StudentPage extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value.toLowerCase();
+                      });
+                    },
                     decoration: InputDecoration(
                       hintText: 'Search by name, course, or phone...',
                       prefixIcon: const Icon(Icons.search),
@@ -70,14 +83,18 @@ class StudentPage extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 DropdownButton<String>(
-                  value: 'All Status',
+                  value: _selectedStatus,
                   items:
                       ['All Status', 'Paid', 'Pending', 'Overdue']
                           .map(
                             (e) => DropdownMenuItem(value: e, child: Text(e)),
                           )
                           .toList(),
-                  onChanged: (value) {},
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedStatus = value!;
+                    });
+                  },
                 ),
               ],
             ),
@@ -100,14 +117,45 @@ class StudentPage extends StatelessWidget {
                   }
 
                   final docs = snapshot.data!.docs;
-                  if (docs.isEmpty) {
+
+                  final filteredDocs =
+                      docs.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final name =
+                            (data['name'] ?? '').toString().toLowerCase();
+                        final course =
+                            (data['course'] ?? '').toString().toLowerCase();
+                        final phone =
+                            (data['phone'] ?? '').toString().toLowerCase();
+                        final total = (data['total_fees'] ?? 0).toDouble();
+                        final paid = (data['amount_paid'] ?? 0).toDouble();
+                        final dueDate =
+                            (data['payment_due_date'] as Timestamp?)
+                                ?.toDate() ??
+                            DateTime.now();
+                        final status = getStatus(total, paid, dueDate);
+
+                        final matchesSearch =
+                            name.contains(_searchQuery) ||
+                            course.contains(_searchQuery) ||
+                            phone.contains(_searchQuery);
+
+                        final matchesStatus =
+                            _selectedStatus == 'All Status' ||
+                            status == _selectedStatus;
+
+                        return matchesSearch && matchesStatus;
+                      }).toList();
+
+                  if (filteredDocs.isEmpty) {
                     return const Center(child: Text('No students found'));
                   }
 
                   return ListView.builder(
-                    itemCount: docs.length,
+                    itemCount: filteredDocs.length,
                     itemBuilder: (context, index) {
-                      final data = docs[index].data() as Map<String, dynamic>;
+                      final data =
+                          filteredDocs[index].data() as Map<String, dynamic>;
                       final name = data['name'] ?? '';
                       final course = data['course'] ?? '';
                       final phone = data['phone'] ?? '';

@@ -22,7 +22,21 @@ class _AddStudentPageState extends State<AddStudentPage> {
   DateTime? _enrollmentDate;
   DateTime? _dueDate;
 
-  final List<String> _courses = ['Flutter', 'React', 'Python', 'Java'];
+  final List<String> _courses = [
+    'CCNA Course',
+    'CCNP Course',
+    'CCIE Course',
+    'Data Analytics Course',
+    'AWS Solution Architect Course',
+    'Cybersecurity Course',
+    'CompTIA Security Course',
+    'Certified Ethical Hacking',
+    'AWS DevOps Course',
+    'Azure DevOps Course',
+    'Linux Administration',
+    'Python Full Stack',
+    'Java Full Stack',
+  ];
 
   Future<void> _selectDate(BuildContext context, bool isEnrollment) async {
     final DateTime? picked = await showDatePicker(

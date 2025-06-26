@@ -31,6 +31,154 @@ class _StudentPageState extends State<StudentPage> {
     }
   }
 
+  void _showEditBottomSheet(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final nameController = TextEditingController(text: data['name']);
+    final phoneController = TextEditingController(text: data['phone']);
+    final emailController = TextEditingController(text: data['email']);
+    final courseController = TextEditingController(text: data['course']);
+    final totalFeesController = TextEditingController(
+      text: data['total_fees'].toString(),
+    );
+    final amountPaidController = TextEditingController(
+      text: data['amount_paid'].toString(),
+    );
+
+    DateTime? enrollmentDate = (data['created_at'] as Timestamp?)?.toDate();
+    DateTime? dueDate = (data['payment_due_date'] as Timestamp?)?.toDate();
+
+    showModalBottomSheet(
+      isScrollControlled: true,
+      context: context,
+      builder:
+          (context) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              left: 16,
+              right: 16,
+              top: 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const Text(
+                    'Update student information and payment details.',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Student Name *',
+                    ),
+                  ),
+                  TextField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number *',
+                    ),
+                  ),
+                  TextField(
+                    controller: emailController,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                  ),
+                  TextField(
+                    controller: courseController,
+                    decoration: const InputDecoration(labelText: 'Course *'),
+                  ),
+                  TextField(
+                    controller: totalFeesController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Total Fees *',
+                    ),
+                  ),
+                  TextField(
+                    controller: amountPaidController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Amount Paid'),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text("Enrollment Date: "),
+                      TextButton(
+                        onPressed: () async {
+                          final selected = await showDatePicker(
+                            context: context,
+                            initialDate: enrollmentDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (selected != null) {
+                            setState(() {
+                              enrollmentDate = selected;
+                            });
+                          }
+                        },
+                        child: Text(
+                          enrollmentDate != null
+                              ? DateFormat('dd/MM/yyyy').format(enrollmentDate!)
+                              : 'Select',
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      const Text("Payment Due Date: "),
+                      TextButton(
+                        onPressed: () async {
+                          final selected = await showDatePicker(
+                            context: context,
+                            initialDate: dueDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (selected != null) {
+                            setState(() {
+                              dueDate = selected;
+                            });
+                          }
+                        },
+                        child: Text(
+                          dueDate != null
+                              ? DateFormat('dd/MM/yyyy').format(dueDate!)
+                              : 'Select',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await FirebaseFirestore.instance
+                          .collection('student_enroll_details')
+                          .doc(doc.id)
+                          .update({
+                            'name': nameController.text.trim(),
+                            'phone': phoneController.text.trim(),
+                            'email': emailController.text.trim(),
+                            'course': courseController.text.trim(),
+                            'total_fees':
+                                double.tryParse(totalFeesController.text) ?? 0,
+                            'amount_paid':
+                                double.tryParse(amountPaidController.text) ?? 0,
+                            'created_at': enrollmentDate ?? DateTime.now(),
+                            'payment_due_date': dueDate ?? DateTime.now(),
+                          });
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Update Student'),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,8 +207,6 @@ class _StudentPageState extends State<StudentPage> {
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
-
-            // Search bar and filter
             Row(
               children: [
                 Expanded(
@@ -99,8 +245,6 @@ class _StudentPageState extends State<StudentPage> {
               ],
             ),
             const SizedBox(height: 20),
-
-            // Student list
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream:
@@ -139,7 +283,6 @@ class _StudentPageState extends State<StudentPage> {
                             name.contains(_searchQuery) ||
                             course.contains(_searchQuery) ||
                             phone.contains(_searchQuery);
-
                         final matchesStatus =
                             _selectedStatus == 'All Status' ||
                             status == _selectedStatus;
@@ -154,8 +297,8 @@ class _StudentPageState extends State<StudentPage> {
                   return ListView.builder(
                     itemCount: filteredDocs.length,
                     itemBuilder: (context, index) {
-                      final data =
-                          filteredDocs[index].data() as Map<String, dynamic>;
+                      final doc = filteredDocs[index];
+                      final data = doc.data() as Map<String, dynamic>;
                       final name = data['name'] ?? '';
                       final course = data['course'] ?? '';
                       final phone = data['phone'] ?? '';
@@ -184,14 +327,24 @@ class _StudentPageState extends State<StudentPage> {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _showEditBottomSheet(doc),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
@@ -266,7 +419,6 @@ class _StudentPageState extends State<StudentPage> {
           ],
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(

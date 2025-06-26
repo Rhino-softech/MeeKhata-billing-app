@@ -64,6 +64,8 @@ class DashboardPage extends StatelessWidget {
           int paid = 0;
           int pending = 0;
           int overdue = 0;
+          double totalAmount = 0;
+          double dueAmount = 0;
 
           if (snapshot.hasData) {
             final now = DateTime.now();
@@ -75,6 +77,9 @@ class DashboardPage extends StatelessWidget {
               final DateTime dueDate = dueTimestamp?.toDate() ?? now;
 
               total++;
+              totalAmount += totalFees;
+              dueAmount += (totalFees - amountPaid).clamp(0, totalFees);
+
               if (amountPaid >= totalFees) {
                 paid++;
               } else if (dueDate.isBefore(now)) {
@@ -85,124 +90,139 @@ class DashboardPage extends StatelessWidget {
             }
           }
 
-          return Column(
-            children: [
-              const SizedBox(height: 10),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(color: Colors.grey.shade300, blurRadius: 4),
-                      ],
-                    ),
-                    child: const Text(
-                      'Dashboard',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const StudentPage(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'Students',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        decoration: TextDecoration.underline,
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(color: Colors.grey.shade300, blurRadius: 4),
+                        ],
+                      ),
+                      child: const Text(
+                        'Dashboard',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStatCard(
-                      'Total Students',
-                      '$total',
-                      Icons.group_outlined,
-                      Colors.black,
-                    ),
-                    _buildStatCard(
-                      'Paid',
-                      '$paid',
-                      Icons.attach_money,
-                      Colors.green,
-                    ),
-                    _buildStatCard(
-                      'Pending',
-                      '$pending',
-                      Icons.access_time,
-                      Colors.orange,
-                    ),
-                    _buildStatCard(
-                      'Overdue',
-                      '$overdue',
-                      Icons.error_outline,
-                      Colors.red,
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const StudentPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Students',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
 
-              const SizedBox(height: 30),
+                const SizedBox(height: 20),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.shade300,
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    alignment: WrapAlignment.center,
                     children: [
-                      Text(
-                        'Recent Students',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
+                      _buildStatCard(
+                        'Total Students',
+                        '$total',
+                        Icons.group_outlined,
+                        Colors.black,
                       ),
-                      SizedBox(height: 5),
-                      Text(
-                        'Latest student registrations and updates',
-                        style: TextStyle(color: Colors.grey),
+                      _buildStatCard(
+                        'Paid',
+                        '$paid',
+                        Icons.attach_money,
+                        Colors.green,
+                      ),
+                      _buildStatCard(
+                        'Pending',
+                        '$pending',
+                        Icons.access_time,
+                        Colors.orange,
+                      ),
+                      _buildStatCard(
+                        'Overdue',
+                        '$overdue',
+                        Icons.error_outline,
+                        Colors.red,
+                      ),
+                      _buildStatCard(
+                        'Total Amount',
+                        '₹${totalAmount.toStringAsFixed(2)}',
+                        Icons.account_balance_wallet,
+                        Colors.blue,
+                      ),
+                      _buildStatCard(
+                        'Due Amount',
+                        '₹${dueAmount.toStringAsFixed(2)}',
+                        Icons.money_off,
+                        Colors.purple,
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 30),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.shade300,
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Recent Students',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'Latest student registrations and updates',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -216,8 +236,8 @@ class DashboardPage extends StatelessWidget {
     Color color,
   ) {
     return Container(
-      width: 80,
-      padding: const EdgeInsets.all(12),
+      width: 140,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),

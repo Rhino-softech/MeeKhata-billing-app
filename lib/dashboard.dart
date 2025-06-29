@@ -3,11 +3,33 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'student_page.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   final String? userName;
   final String? email;
 
   const DashboardPage({super.key, this.userName, this.email});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  bool isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    checkIfAdmin();
+  }
+
+  Future<void> checkIfAdmin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.email != null) {
+      setState(() {
+        isAdmin = user.email!.toLowerCase() == 'admin@gmail.com';
+      });
+    }
+  }
 
   void _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
@@ -32,7 +54,7 @@ class DashboardPage extends StatelessWidget {
               ),
             ),
             Text(
-              'Welcome, ${userName ?? "User"}',
+              'Welcome, ${widget.userName ?? "User"}',
               style: const TextStyle(color: Colors.black54, fontSize: 12),
             ),
           ],
@@ -41,9 +63,9 @@ class DashboardPage extends StatelessWidget {
           TextButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.person_outline, color: Colors.black),
-            label: const Text(
-              'Employee',
-              style: TextStyle(color: Colors.black),
+            label: Text(
+              isAdmin ? "Admin" : "Employee",
+              style: const TextStyle(color: Colors.black),
             ),
           ),
           TextButton.icon(
@@ -60,12 +82,14 @@ class DashboardPage extends StatelessWidget {
                 .collection('student_enroll_details')
                 .snapshots(),
         builder: (context, snapshot) {
+          // For both admin and employee
           int total = 0;
-          int paid = 0;
-          int pending = 0;
-          int overdue = 0;
-          double totalAmount = 0;
-          double dueAmount = 0;
+
+          // For employee view
+          int paidCount = 0, pendingCount = 0, overdueCount = 0;
+
+          // For admin view
+          double totalAmount = 0, amountCollected = 0, dueAmount = 0;
 
           if (snapshot.hasData) {
             final now = DateTime.now();
@@ -77,15 +101,19 @@ class DashboardPage extends StatelessWidget {
               final DateTime dueDate = dueTimestamp?.toDate() ?? now;
 
               total++;
-              totalAmount += totalFees;
-              dueAmount += (totalFees - amountPaid).clamp(0, totalFees);
 
-              if (amountPaid >= totalFees) {
-                paid++;
-              } else if (dueDate.isBefore(now)) {
-                overdue++;
+              if (isAdmin) {
+                totalAmount += totalFees;
+                amountCollected += amountPaid;
+                dueAmount += (totalFees - amountPaid).clamp(0, totalFees);
               } else {
-                pending++;
+                if (amountPaid >= totalFees) {
+                  paidCount++;
+                } else if (dueDate.isBefore(now)) {
+                  overdueCount++;
+                } else {
+                  pendingCount++;
+                }
               }
             }
           }
@@ -116,14 +144,13 @@ class DashboardPage extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const StudentPage(),
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const StudentPage(),
+                            ),
                           ),
-                        );
-                      },
                       child: const Text(
                         'Students',
                         style: TextStyle(
@@ -134,9 +161,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12.0),
                   child: Wrap(
@@ -150,42 +175,49 @@ class DashboardPage extends StatelessWidget {
                         Icons.group_outlined,
                         Colors.black,
                       ),
-                      _buildStatCard(
-                        'Paid',
-                        '$paid',
-                        Icons.attach_money,
-                        Colors.green,
-                      ),
-                      _buildStatCard(
-                        'Pending',
-                        '$pending',
-                        Icons.access_time,
-                        Colors.orange,
-                      ),
-                      _buildStatCard(
-                        'Overdue',
-                        '$overdue',
-                        Icons.error_outline,
-                        Colors.red,
-                      ),
-                      _buildStatCard(
-                        'Total Amount',
-                        '₹${totalAmount.toStringAsFixed(2)}',
-                        Icons.account_balance_wallet,
-                        Colors.blue,
-                      ),
-                      _buildStatCard(
-                        'Due Amount',
-                        '₹${dueAmount.toStringAsFixed(2)}',
-                        Icons.money_off,
-                        Colors.purple,
-                      ),
+                      if (isAdmin) ...[
+                        _buildStatCard(
+                          'Total Fees',
+                          '₹${totalAmount.toStringAsFixed(2)}',
+                          Icons.request_quote,
+                          Colors.teal,
+                        ),
+                        _buildStatCard(
+                          'Fees Collected',
+                          '₹${amountCollected.toStringAsFixed(2)}',
+                          Icons.payments,
+                          Colors.indigo,
+                        ),
+                        _buildStatCard(
+                          'Pending Fees',
+                          '₹${dueAmount.toStringAsFixed(2)}',
+                          Icons.money_off_csred,
+                          Colors.purple,
+                        ),
+                      ] else ...[
+                        _buildStatCard(
+                          'Paid Students',
+                          '$paidCount',
+                          Icons.attach_money,
+                          Colors.green,
+                        ),
+                        _buildStatCard(
+                          'Pending Students',
+                          '$pendingCount',
+                          Icons.access_time,
+                          Colors.orange,
+                        ),
+                        _buildStatCard(
+                          'Overdue Students',
+                          '$overdueCount',
+                          Icons.error_outline,
+                          Colors.red,
+                        ),
+                      ],
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 30),
-
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Container(

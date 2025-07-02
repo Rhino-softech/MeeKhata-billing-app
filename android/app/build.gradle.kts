@@ -13,7 +13,9 @@ plugins {
 android {
     ndkVersion = "27.0.12077973"
     namespace = "com.example.billing_app"
-    compileSdk = flutter.compileSdkVersion
+
+    // ✅ Explicitly set compileSdk and targetSdk to fix 'lStar' error
+    compileSdk = 33
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -26,8 +28,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.billing_app"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 21
+        targetSdk = 33
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -44,8 +46,6 @@ android {
         }
     }
 }
-
-
 
 flutter {
     source = "../.."

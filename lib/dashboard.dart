@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'student_page.dart';
+import 'package:intl/intl.dart';
+import 'add_student_page.dart';
+import 'course_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String? userName;
@@ -14,289 +15,437 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool isAdmin = false;
+  int selectedTabIndex = 0;
+  List<Map<String, dynamic>> allTransactions = [];
+
+  double todayPayment = 0;
+  double totalDue = 0;
+  int completedCount = 0;
 
   @override
   void initState() {
     super.initState();
-    checkIfAdmin();
+    fetchTransactions();
   }
 
-  Future<void> checkIfAdmin() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && user.email != null) {
-      setState(() {
-        isAdmin = user.email!.toLowerCase() == 'admin@gmail.com';
-      });
-    }
-  }
+  void fetchTransactions() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
-  void _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    double todayPay = 0;
+    double due = 0;
+    int completed = 0;
+
+    FirebaseFirestore.instance
+        .collection('student_enroll_details')
+        .snapshots()
+        .listen((snapshot) {
+          final List<Map<String, dynamic>> txList = [];
+
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+
+            final String name = data['name'] ?? 'Unknown';
+            final String course = data['course_name'] ?? '';
+            final double total = (data['total_fees'] ?? 0).toDouble();
+            final double paid = (data['amount_paid'] ?? 0).toDouble();
+            final Timestamp? paymentDate = data['last_payment_date'];
+            final Timestamp? enrollDate = data['enrollment_date'];
+
+            final DateTime? paidAt = paymentDate?.toDate();
+            final DateTime? enrolledAt = enrollDate?.toDate();
+
+            bool paidToday =
+                paidAt != null &&
+                paidAt.isAfter(startOfDay) &&
+                paidAt.isBefore(endOfDay);
+
+            if (paidToday) todayPay += paid;
+            if (paid >= total) completed++;
+            if (paid < total) due += (total - paid);
+
+            txList.add({
+              'name': name,
+              'course': course,
+              'total': total,
+              'paid': paid,
+              'due': (total - paid),
+              'paidToday': paidToday,
+              'date': enrolledAt,
+            });
+          }
+
+          setState(() {
+            allTransactions = txList;
+            todayPayment = todayPay;
+            totalDue = due;
+            completedCount = completed;
+          });
+        });
   }
 
   @override
   Widget build(BuildContext context) {
+    List<Map<String, dynamic>> filteredTransactions = [];
+
+    switch (selectedTabIndex) {
+      case 0:
+        filteredTransactions = allTransactions;
+        break;
+      case 1:
+        filteredTransactions =
+            allTransactions.where((t) => t['paidToday'] == true).toList();
+        break;
+      case 2:
+        filteredTransactions =
+            allTransactions.where((t) => t['due'] <= 0).toList();
+        break;
+      case 3:
+        filteredTransactions =
+            allTransactions.where((t) => t['due'] > 0).toList();
+        break;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 1,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Student Billing System',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'Welcome, ${widget.userName ?? "User"}',
-              style: const TextStyle(color: Colors.black54, fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.person_outline, color: Colors.black),
-            label: Text(
-              isAdmin ? "Admin" : "Employee",
-              style: const TextStyle(color: Colors.black),
-            ),
+        title: const Text('Dashboard', style: TextStyle(color: Colors.black)),
+        elevation: 0.5,
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.blue,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddStudentPage()),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CoursesPage()),
+            );
+          }
+        },
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book),
+            label: 'Courses',
           ),
-          TextButton.icon(
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout, color: Colors.black),
-            label: const Text('Logout', style: TextStyle(color: Colors.black)),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Invoices'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Reports',
           ),
-          const SizedBox(width: 10),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream:
-            FirebaseFirestore.instance
-                .collection('student_enroll_details')
-                .snapshots(),
-        builder: (context, snapshot) {
-          // For both admin and employee
-          int total = 0;
 
-          // For employee view
-          int paidCount = 0, pendingCount = 0, overdueCount = 0;
-
-          // For admin view
-          double totalAmount = 0, amountCollected = 0, dueAmount = 0;
-
-          if (snapshot.hasData) {
-            final now = DateTime.now();
-            for (var doc in snapshot.data!.docs) {
-              final data = doc.data() as Map<String, dynamic>;
-              final double totalFees = (data['total_fees'] ?? 0).toDouble();
-              final double amountPaid = (data['amount_paid'] ?? 0).toDouble();
-              final Timestamp? dueTimestamp = data['payment_due_date'];
-              final DateTime dueDate = dueTimestamp?.toDate() ?? now;
-
-              total++;
-
-              if (isAdmin) {
-                totalAmount += totalFees;
-                amountCollected += amountPaid;
-                dueAmount += (totalFees - amountPaid).clamp(0, totalFees);
-              } else {
-                if (amountPaid >= totalFees) {
-                  paidCount++;
-                } else if (dueDate.isBefore(now)) {
-                  overdueCount++;
-                } else {
-                  pendingCount++;
-                }
-              }
-            }
-          }
-
-          return SingleChildScrollView(
-            child: Column(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Column(
+          children: [
+            _topCard(
+              'Today\'s Payment',
+              '₹${todayPayment.toStringAsFixed(0)}',
+              Colors.green,
+              Icons.trending_up,
+            ),
+            const SizedBox(height: 10),
+            Row(
               children: [
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 20,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(color: Colors.grey.shade300, blurRadius: 4),
-                        ],
-                      ),
-                      child: const Text(
-                        'Dashboard',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap:
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const StudentPage(),
-                            ),
-                          ),
-                      child: const Text(
-                        'Students',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      _buildStatCard(
-                        'Total Students',
-                        '$total',
-                        Icons.group_outlined,
-                        Colors.black,
-                      ),
-                      if (isAdmin) ...[
-                        _buildStatCard(
-                          'Total Fees',
-                          '₹${totalAmount.toStringAsFixed(2)}',
-                          Icons.request_quote,
-                          Colors.teal,
-                        ),
-                        _buildStatCard(
-                          'Fees Collected',
-                          '₹${amountCollected.toStringAsFixed(2)}',
-                          Icons.payments,
-                          Colors.indigo,
-                        ),
-                        _buildStatCard(
-                          'Pending Fees',
-                          '₹${dueAmount.toStringAsFixed(2)}',
-                          Icons.money_off_csred,
-                          Colors.purple,
-                        ),
-                      ] else ...[
-                        _buildStatCard(
-                          'Paid Students',
-                          '$paidCount',
-                          Icons.attach_money,
-                          Colors.green,
-                        ),
-                        _buildStatCard(
-                          'Pending Students',
-                          '$pendingCount',
-                          Icons.access_time,
-                          Colors.orange,
-                        ),
-                        _buildStatCard(
-                          'Overdue Students',
-                          '$overdueCount',
-                          Icons.error_outline,
-                          Colors.red,
-                        ),
-                      ],
-                    ],
+                Expanded(
+                  child: _topCard(
+                    'Total Due',
+                    '₹${totalDue.toStringAsFixed(0)}',
+                    Colors.red,
+                    Icons.error,
                   ),
                 ),
-                const SizedBox(height: 30),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.shade300,
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        ),
-                      ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _topCard(
+                    'Completed',
+                    '$completedCount',
+                    Colors.blue,
+                    Icons.check_circle,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text(
+                      'Add Course',
+                      style: TextStyle(color: Colors.white),
                     ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Recent Students',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF42A5F5),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddStudentPage(),
                         ),
-                        SizedBox(height: 5),
-                        Text(
-                          'Latest student registrations and updates',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
+                      );
+                    },
+                    icon: const Icon(Icons.person_add, color: Colors.white),
+                    label: const Text(
+                      'Add Student',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFB458F3),
+                      foregroundColor: Colors.white,
                     ),
                   ),
                 ),
               ],
             ),
-          );
-        },
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _tabChip("All", 0, allTransactions.length),
+                _tabChip(
+                  "Today",
+                  1,
+                  allTransactions.where((t) => t['paidToday']).length,
+                ),
+                _tabChip(
+                  "Completed",
+                  2,
+                  allTransactions.where((t) => t['due'] <= 0).length,
+                ),
+                _tabChip(
+                  "Due",
+                  3,
+                  allTransactions.where((t) => t['due'] > 0).length,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Transactions",
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...filteredTransactions.map((t) => _transactionCard(t)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  Widget _topCard(String title, String value, Color color, IconData icon) {
     return Container(
-      width: 140,
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(color: Colors.white)),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Icon(icon, color: Colors.white),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabChip(String label, int index, int count) {
+    final isSelected = selectedTabIndex == index;
+    return ChoiceChip(
+      label: Text('$label ($count)'),
+      selected: isSelected,
+      onSelected: (_) => setState(() => selectedTabIndex = index),
+      selectedColor: Colors.black,
+      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
+    );
+  }
+
+  Widget _transactionCard(Map<String, dynamic> data) {
+    bool isPaid = data['due'] <= 0;
+    DateTime? date = data['date'];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 245, 244, 244),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade300,
-            blurRadius: 6,
-            spreadRadius: 1,
+            color: const Color.fromARGB(255, 231, 226, 226).withOpacity(0.15),
+            blurRadius: 4,
+            offset: const Offset(2, 3),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
+          /// First Row: Name + Today + Amount Paid
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    data['name'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  if (data['paidToday'] == true)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Today',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              Text(
+                '₹${data['paid'].toStringAsFixed(0)}',
+                style: const TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          /// Course name and date
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                data['course'] ?? '',
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+              ),
+              if (date != null)
+                Text(
+                  DateFormat('yyyy-MM-dd').format(date),
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          /// Due badge
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: isPaid ? Colors.green : Colors.red,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                isPaid ? 'Paid' : 'Due',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
             ),
           ),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 12),
-            textAlign: TextAlign.center,
+
+          const SizedBox(height: 6),
+
+          /// Total, Paid, Due row
+          Row(
+            children: [
+              Text(
+                'Total: ₹${data['total'].toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Paid: ₹${data['paid'].toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Due: ₹${data['due'].toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          /// Progress bar
+          LinearProgressIndicator(
+            value:
+                data['total'] > 0
+                    ? (data['paid'] / data['total']).clamp(0.0, 1.0)
+                    : 0.0,
+            backgroundColor: Colors.grey[200],
+            color: isPaid ? Colors.green : Colors.orange,
+            minHeight: 4,
           ),
         ],
       ),

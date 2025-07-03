@@ -1,13 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'add_course_modal.dart';
 import 'dashboard.dart';
 import 'student_details_page.dart';
+import 'invoice_page.dart';
 
 class CoursesPage extends StatefulWidget {
   final String? userName;
   final String? email;
 
-  CoursesPage({super.key, this.userName, this.email});
+  const CoursesPage({super.key, this.userName, this.email});
 
   @override
   State<CoursesPage> createState() => _CoursesPageState();
@@ -34,6 +36,7 @@ class _CoursesPageState extends State<CoursesPage> {
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final String courseName = data['course_name'] ?? 'Unknown';
+      final String batchId = data['batch_id'] ?? 'default_batch';
       final double totalFee = (data['total_fees'] ?? 0).toDouble();
       final double paidAmount = (data['amount_paid'] ?? 0).toDouble();
 
@@ -43,34 +46,67 @@ class _CoursesPageState extends State<CoursesPage> {
           'students': 1,
           'totalFee': totalFee,
           'collected': paidAmount,
+          'batches': {batchId},
         };
       } else {
         groupedCourses[courseName]!['students'] += 1;
         groupedCourses[courseName]!['totalFee'] += totalFee;
         groupedCourses[courseName]!['collected'] += paidAmount;
+        groupedCourses[courseName]!['batches'].add(batchId);
       }
     }
 
+    final formattedCourses =
+        groupedCourses.values.map((course) {
+          return {
+            'name': course['name'],
+            'students': course['students'],
+            'totalFee': course['totalFee'],
+            'collected': course['collected'],
+            'batches': (course['batches'] as Set).length,
+          };
+        }).toList();
+
     setState(() {
-      courses = groupedCourses.values.toList();
+      courses = formattedCourses;
     });
   }
 
   void _onItemTapped(int index) {
-    if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder:
-              (_) =>
-                  DashboardPage(userName: widget.userName, email: widget.email),
-        ),
-      );
-    }
+    if (index == _selectedIndex) return;
 
     setState(() {
       _selectedIndex = index;
     });
+
+    Widget targetPage;
+    switch (index) {
+      case 0:
+        targetPage = DashboardPage(
+          userName: widget.userName,
+          email: widget.email,
+        );
+        break;
+      case 1:
+        return;
+      case 2:
+        targetPage = InvoicesPage();
+        break;
+      default:
+        return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => targetPage),
+    );
+  }
+
+  void _openAddCourseDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddCourseModal(onSubmit: fetchCoursesFromFirestore),
+    );
   }
 
   @override
@@ -94,7 +130,10 @@ class _CoursesPageState extends State<CoursesPage> {
           courses.isEmpty
               ? const Center(child: CircularProgressIndicator())
               : ListView.builder(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 itemCount: courses.length,
                 itemBuilder: (context, index) {
                   final course = courses[index];
@@ -103,100 +142,85 @@ class _CoursesPageState extends State<CoursesPage> {
                       course['totalFee'].clamp(1, double.infinity);
 
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 18),
-                    padding: const EdgeInsets.all(18),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.grey[200]!),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black12.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
                         ),
                       ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        /// Top Row
+                        /// Title + Batch & Student Tags + Icons
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              course['name'],
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: Text(
+                                course['name'],
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF2F2F2),
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                  child: Text(
-                                    '${course['students']} students',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
+                                _buildTag('${course['batches']} batches'),
+                                const SizedBox(width: 4),
+                                _buildTag('${course['students']} students'),
                                 IconButton(
                                   onPressed: () {},
                                   icon: const Icon(
                                     Icons.edit,
+                                    size: 18,
                                     color: Colors.blue,
-                                    size: 20,
                                   ),
                                 ),
                                 IconButton(
                                   onPressed: () {},
                                   icon: const Icon(
                                     Icons.delete,
+                                    size: 18,
                                     color: Colors.red,
-                                    size: 20,
                                   ),
                                 ),
                               ],
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10),
 
-                        const SizedBox(height: 16),
-
-                        /// Fee details
+                        /// Fees row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Total Fee\n₹${course['totalFee'].toStringAsFixed(0)}',
+                              'Total: ₹${course['totalFee'].toStringAsFixed(0)}',
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.black,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             Text(
-                              'Collected\n₹${course['collected'].toStringAsFixed(0)}',
+                              'Collected: ₹${course['collected'].toStringAsFixed(0)}',
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.green,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
 
                         /// Progress bar
                         ClipRRect(
@@ -205,16 +229,15 @@ class _CoursesPageState extends State<CoursesPage> {
                             value: percentage,
                             backgroundColor: Colors.grey[300],
                             color: Colors.green,
-                            minHeight: 8,
+                            minHeight: 6,
                           ),
                         ),
+                        const SizedBox(height: 10),
 
-                        const SizedBox(height: 14),
-
-                        /// View Students Button
+                        /// View Batches
                         SizedBox(
                           width: double.infinity,
-                          child: OutlinedButton(
+                          child: OutlinedButton.icon(
                             onPressed: () {
                               Navigator.push(
                                 context,
@@ -226,15 +249,19 @@ class _CoursesPageState extends State<CoursesPage> {
                                 ),
                               );
                             },
+                            icon: const Icon(Icons.groups, size: 18),
+                            label: Text(
+                              'View Batches (${course['batches']})',
+                              style: const TextStyle(fontSize: 13),
+                            ),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               side: const BorderSide(color: Colors.grey),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
+                              foregroundColor: Colors.black,
                             ),
-                            child: const Text('View Students'),
                           ),
                         ),
                       ],
@@ -242,57 +269,47 @@ class _CoursesPageState extends State<CoursesPage> {
                   );
                 },
               ),
-
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Add new course logic
-        },
+        onPressed: _openAddCourseDialog,
         backgroundColor: const Color(0xFFB458F3),
         child: const Icon(Icons.add),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, -1),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          child: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            selectedItemColor: Colors.blue,
-            unselectedItemColor: Colors.grey,
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.menu_book),
-                label: 'Courses',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.receipt),
-                label: 'Invoices',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart),
-                label: 'Reports',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                label: 'Settings',
-              ),
-            ],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book),
+            label: 'Courses',
           ),
-        ),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Invoices'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Reports',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
       ),
     );
   }

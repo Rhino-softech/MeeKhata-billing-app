@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+
 import 'add_student_page.dart';
 import 'course_page.dart';
+import 'invoice_page.dart';
+// import 'reports_page.dart';
+// import 'settings_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String? userName;
@@ -28,20 +32,19 @@ class _DashboardPageState extends State<DashboardPage> {
     fetchTransactions();
   }
 
-  void fetchTransactions() async {
+  void fetchTransactions() {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
-
-    double todayPay = 0;
-    double due = 0;
-    int completed = 0;
 
     FirebaseFirestore.instance
         .collection('student_enroll_details')
         .snapshots()
         .listen((snapshot) {
           final List<Map<String, dynamic>> txList = [];
+          double todayPay = 0;
+          double due = 0;
+          int completed = 0;
 
           for (var doc in snapshot.docs) {
             final data = doc.data();
@@ -70,7 +73,7 @@ class _DashboardPageState extends State<DashboardPage> {
               'course': course,
               'total': total,
               'paid': paid,
-              'due': (total - paid),
+              'due': total - paid,
               'paidToday': paidToday,
               'date': enrolledAt,
             });
@@ -83,6 +86,31 @@ class _DashboardPageState extends State<DashboardPage> {
             completedCount = completed;
           });
         });
+  }
+
+  void onNavTap(int index) {
+    if (index == 0) return;
+
+    switch (index) {
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CoursesPage()),
+        );
+        break;
+      case 2:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => InvoicesPage()),
+        );
+        break;
+      // case 3:
+      //   Navigator.push(context, MaterialPageRoute(builder: (_) => ReportsPage()));
+      //   break;
+      // case 4:
+      //   Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsPage()));
+      //   break;
+    }
   }
 
   @override
@@ -126,14 +154,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => CoursesPage()),
-            );
-          }
-        },
+        onTap: onNavTap,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
         items: const [
@@ -153,13 +174,12 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ],
       ),
-
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             _topCard(
-              'Today\'s Payment',
+              "Today's Payment",
               '₹${todayPayment.toStringAsFixed(0)}',
               Colors.green,
               Icons.trending_up,
@@ -199,11 +219,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF42A5F5),
-                      foregroundColor: Colors.white,
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton.icon(
@@ -222,7 +240,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFB458F3),
-                      foregroundColor: Colors.white,
                     ),
                   ),
                 ),
@@ -274,7 +291,6 @@ class _DashboardPageState extends State<DashboardPage> {
         color: color,
         borderRadius: BorderRadius.circular(10),
       ),
-      margin: const EdgeInsets.only(bottom: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -320,18 +336,10 @@ class _DashboardPageState extends State<DashboardPage> {
       decoration: BoxDecoration(
         color: const Color.fromARGB(255, 245, 244, 244),
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: const Color.fromARGB(255, 231, 226, 226).withOpacity(0.15),
-            blurRadius: 4,
-            offset: const Offset(2, 3),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// First Row: Name + Today + Amount Paid
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -342,7 +350,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -358,10 +365,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       child: const Text(
                         'Today',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: TextStyle(fontSize: 11),
                       ),
                     ),
                 ],
@@ -376,10 +380,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 5),
-
-          /// Course name and date
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -394,10 +395,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
             ],
           ),
-
           const SizedBox(height: 6),
-
-          /// Due badge
           Align(
             alignment: Alignment.centerRight,
             child: Container(
@@ -412,10 +410,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 6),
-
-          /// Total, Paid, Due row
           Row(
             children: [
               Text(
@@ -434,10 +429,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 6),
-
-          /// Progress bar
           LinearProgressIndicator(
             value:
                 data['total'] > 0

@@ -27,43 +27,17 @@ class _CoursesPageState extends State<CoursesPage> {
 
   void fetchCoursesFromFirestore() async {
     final snapshot =
-        await FirebaseFirestore.instance
-            .collection('student_enroll_details')
-            .get();
-
-    final Map<String, Map<String, dynamic>> groupedCourses = {};
-
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final String courseName = data['course_name'] ?? 'Unknown';
-      final String batchId = data['batch_id'] ?? 'default_batch';
-      final double totalFee = (data['total_fees'] ?? 0).toDouble();
-      final double paidAmount = (data['amount_paid'] ?? 0).toDouble();
-
-      if (!groupedCourses.containsKey(courseName)) {
-        groupedCourses[courseName] = {
-          'name': courseName,
-          'students': 1,
-          'totalFee': totalFee,
-          'collected': paidAmount,
-          'batches': {batchId},
-        };
-      } else {
-        groupedCourses[courseName]!['students'] += 1;
-        groupedCourses[courseName]!['totalFee'] += totalFee;
-        groupedCourses[courseName]!['collected'] += paidAmount;
-        groupedCourses[courseName]!['batches'].add(batchId);
-      }
-    }
+        await FirebaseFirestore.instance.collection('course_details').get();
 
     final formattedCourses =
-        groupedCourses.values.map((course) {
+        snapshot.docs.map((doc) {
+          final data = doc.data();
           return {
-            'name': course['name'],
-            'students': course['students'],
-            'totalFee': course['totalFee'],
-            'collected': course['collected'],
-            'batches': (course['batches'] as Set).length,
+            'name': data['name'] ?? 'Unknown',
+            'students': 0,
+            'totalFee': 0.0,
+            'collected': 0.0,
+            'batches': 0,
           };
         }).toList();
 

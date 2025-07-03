@@ -17,14 +17,31 @@ class _AddStudentPageState extends State<AddStudentPage> {
   final TextEditingController emailController = TextEditingController();
 
   String? selectedCourse;
-
-  final List<String> courses = [
-    'React Development',
-    'Python Programming',
-    'Data Science',
-  ];
+  List<String> courses = [];
 
   bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchCourses();
+  }
+
+  void fetchCourses() async {
+    final snapshot =
+        await FirebaseFirestore.instance.collection('course_details').get();
+
+    final courseNames =
+        snapshot.docs
+            .map((doc) => doc.data()['name']?.toString())
+            .where((name) => name != null && name.isNotEmpty)
+            .cast<String>()
+            .toList();
+
+    setState(() {
+      courses = courseNames;
+    });
+  }
 
   void addStudent() async {
     if (!_formKey.currentState!.validate()) return;
@@ -115,12 +132,14 @@ class _AddStudentPageState extends State<AddStudentPage> {
                   ),
                   hint: const Text("Select a course"),
                   items:
-                      courses.map((course) {
-                        return DropdownMenuItem<String>(
-                          value: course,
-                          child: Text(course),
-                        );
-                      }).toList(),
+                      courses
+                          .map(
+                            (course) => DropdownMenuItem<String>(
+                              value: course,
+                              child: Text(course),
+                            ),
+                          )
+                          .toList(),
                   onChanged: (value) => setState(() => selectedCourse = value),
                   validator:
                       (value) =>

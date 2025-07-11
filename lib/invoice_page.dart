@@ -1,48 +1,51 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'dashboard.dart';
 import 'course_page.dart';
-// import 'reports_page.dart';
-// import 'settings_page.dart';
+import 'reports_page.dart';
+import 'settings_page.dart';
 
-class InvoicesPage extends StatelessWidget {
-  final List<Map<String, dynamic>> invoices = [
-    {
-      'name': 'Arjun Sharma',
-      'course': 'React Development',
-      'total': 5000,
-      'paid': 3000,
-      'due': 2000,
-      'transactions': 2,
-      'status': 'Pending',
-    },
-    {
-      'name': 'Priya Patel',
-      'course': 'Python Programming',
-      'total': 5000,
-      'paid': 5000,
-      'due': 0,
-      'transactions': 2,
-      'status': 'Completed',
-    },
-    {
-      'name': 'Rahul Kumar',
-      'course': 'Data Science',
-      'total': 12000,
-      'paid': 8000,
-      'due': 4000,
-      'transactions': 2,
-      'status': 'Pending',
-    },
-    {
-      'name': 'Sneha Gupta',
-      'course': 'UI/UX Design',
-      'total': 5000,
-      'paid': 2000,
-      'due': 3000,
-      'transactions': 2,
-      'status': 'Pending',
-    },
-  ];
+class InvoicesPage extends StatefulWidget {
+  const InvoicesPage({super.key});
+
+  @override
+  State<InvoicesPage> createState() => _InvoicesPageState();
+}
+
+class _InvoicesPageState extends State<InvoicesPage> {
+  String selectedCourse = 'All Courses';
+  List<String> courseOptions = ['All Courses'];
+  final TextEditingController _searchController = TextEditingController();
+  String searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+
+    // Update search query in real-time
+    _searchController.addListener(() {
+      setState(() {
+        searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
+  }
+
+  Future<void> _loadCourses() async {
+    final snapshot =
+        await FirebaseFirestore.instance.collection('course_details').get();
+
+    final courseNames =
+        snapshot.docs
+            .map((doc) => doc.data()['name']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList();
+
+    setState(() {
+      courseOptions = ['All Courses', ...courseNames];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,47 +58,116 @@ class InvoicesPage extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
-        actions: const [
-          Icon(Icons.search, color: Colors.black),
-          SizedBox(width: 16),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Search students by name...',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+      body: StreamBuilder<QuerySnapshot>(
+        stream:
+            FirebaseFirestore.instance
+                .collection('student_enroll_details')
+                .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          final invoices =
+              docs
+                  .map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final double total = (data['total_fees'] ?? 0).toDouble();
+                    final double paid = (data['amount_paid'] ?? 0).toDouble();
+                    final double due = total - paid;
+
+                    return {
+                      'name': data['name'] ?? 'Unknown',
+                      'course': data['course_name'] ?? 'Unknown Course',
+                      'total': total,
+                      'paid': paid,
+                      'due': due,
+                      'transactions':
+                          (data['payment_history'] as List?)?.length ?? 0,
+                      'status': due <= 0 ? 'Completed' : 'Pending',
+                    };
+                  })
+                  .where((invoice) {
+                    final matchesCourse =
+                        selectedCourse == 'All Courses' ||
+                        invoice['course'] == selectedCourse;
+                    final matchesSearch =
+                        searchQuery.isEmpty ||
+                        invoice['name'].toString().toLowerCase().contains(
+                          searchQuery,
+                        ) ||
+                        invoice['course'].toString().toLowerCase().contains(
+                          searchQuery,
+                        );
+                    return matchesCourse && matchesSearch;
+                  })
+                  .toList();
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              /// Search Field
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search by student or course name...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 0,
-                horizontal: 16,
+              const SizedBox(height: 16),
+
+              /// Course Dropdown Filter
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButton<String>(
+                  value: selectedCourse,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                  items:
+                      courseOptions.map((course) {
+                        return DropdownMenuItem(
+                          value: course,
+                          child: Text(course),
+                        );
+                      }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedCourse = value;
+                      });
+                    }
+                  },
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: const [
-                Icon(Icons.filter_alt_outlined),
-                SizedBox(width: 10),
-                Text('All Courses'),
-                Spacer(),
-                Icon(Icons.keyboard_arrow_down),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          ...invoices.map((invoice) => _buildInvoiceCard(invoice)).toList(),
-        ],
+              const SizedBox(height: 20),
+
+              /// Invoice Cards or Empty Message
+              if (invoices.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 50),
+                    child: Text(
+                      "No matching records found.",
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                ...invoices.map((invoice) => _buildInvoiceCard(invoice)),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
@@ -103,7 +175,7 @@ class InvoicesPage extends StatelessWidget {
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 2,
+        currentIndex: 2, // Set this to the current page index
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacement(
@@ -115,16 +187,21 @@ class InvoicesPage extends StatelessWidget {
               context,
               MaterialPageRoute(builder: (_) => const CoursesPage()),
             );
-            // } else if (index == 3) {
-            //   Navigator.pushReplacement(
-            //     context,
-            //     MaterialPageRoute(builder: (_) => const ReportsPage()),
-            //   );
-            // } else if (index == 4) {
-            //   Navigator.pushReplacement(
-            //     context,
-            //     MaterialPageRoute(builder: (_) => const SettingsPage()),
-            //   );
+          } else if (index == 2) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const InvoicesPage()),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ReportsPage()),
+            );
+          } else if (index == 4) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsPage()),
+            );
           }
         },
         selectedItemColor: Colors.blue,
@@ -214,7 +291,7 @@ class InvoicesPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          /// Buttons
+          /// Action Buttons
           Row(
             children: [
               Expanded(

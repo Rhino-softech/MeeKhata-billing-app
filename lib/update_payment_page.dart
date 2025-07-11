@@ -17,11 +17,13 @@ class UpdatePaymentPage extends StatefulWidget {
 
 class _UpdatePaymentPageState extends State<UpdatePaymentPage> {
   late TextEditingController _paymentController;
+  String? documentId;
 
   @override
   void initState() {
     super.initState();
     _paymentController = TextEditingController();
+    _fetchDocumentId();
   }
 
   @override
@@ -30,34 +32,48 @@ class _UpdatePaymentPageState extends State<UpdatePaymentPage> {
     super.dispose();
   }
 
-  void updatePayment() async {
-    final String studentName = widget.student['name'];
+  /// Get the Firestore document ID once (based on student name and course)
+  Future<void> _fetchDocumentId() async {
+    final name = widget.student['name'];
+
+    final query =
+        await FirebaseFirestore.instance
+            .collection('student_enroll_details')
+            .where('name', isEqualTo: name)
+            .where('course_name', isEqualTo: widget.courseName)
+            .limit(1)
+            .get();
+
+    if (query.docs.isNotEmpty) {
+      setState(() {
+        documentId = query.docs.first.id;
+      });
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Student not found")));
+      Navigator.pop(context);
+    }
+  }
+
+  void _updatePayment(double currentPaid) async {
+    final inputAmount = double.tryParse(_paymentController.text.trim()) ?? 0.0;
+
+    if (inputAmount <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Enter a valid amount")));
+      return;
+    }
+
+    final updatedAmount = currentPaid + inputAmount;
 
     try {
-      final querySnapshot =
-          await FirebaseFirestore.instance
-              .collection('student_enroll_details')
-              .where('name', isEqualTo: studentName)
-              .limit(1)
-              .get();
-
-      if (querySnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Student not found in Firestore')),
-        );
-        return;
-      }
-
-      final doc = querySnapshot.docs.first;
-      final currentPaid = (doc['amount_paid'] ?? 0).toDouble();
-      final inputAmount = double.tryParse(_paymentController.text) ?? 0.0;
-      final updatedPaid = currentPaid + inputAmount;
-
       await FirebaseFirestore.instance
           .collection('student_enroll_details')
-          .doc(doc.id)
+          .doc(documentId)
           .update({
-            'amount_paid': updatedPaid,
+            'amount_paid': updatedAmount,
             'last_payment_timestamp': FieldValue.serverTimestamp(),
           });
 
@@ -69,142 +85,164 @@ class _UpdatePaymentPageState extends State<UpdatePaymentPage> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final double total = (widget.student['total_fee'] ?? 0).toDouble();
-    final double paid = (widget.student['amount_paid'] ?? 0).toDouble();
-    final double due = total - paid;
-    final double percent = total > 0 ? paid / total : 0;
+    if (documentId == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(
-        title: const Text('Update Payment'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+    return StreamBuilder<DocumentSnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('student_enroll_details')
+              .doc(documentId)
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final name = data['name'] ?? 'Unnamed';
+        final totalFee = (data['total_fees'] ?? 0).toDouble();
+        final amountPaid = (data['amount_paid'] ?? 0).toDouble();
+        final due = totalFee - amountPaid;
+        final percent = totalFee > 0 ? amountPaid / totalFee : 0;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8F9FB),
+          appBar: AppBar(
+            title: const Text('Update Payment'),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0.5,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// Student Info
-              Row(
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.black,
-                    child: Icon(Icons.person, color: Colors.white),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  /// Student Info
+                  Row(
                     children: [
-                      Text(
-                        widget.student['name'] ?? 'No Name',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      const CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.black,
+                        child: Icon(Icons.person, color: Colors.white),
                       ),
-                      Text(
-                        widget.courseName,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 13,
-                        ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            widget.courseName,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
 
-              const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-              /// Fee Breakdown
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildFeeLabel('Total Fee', total, Colors.black),
-                  _buildFeeLabel('Paid', paid, Colors.green),
-                  _buildFeeLabel('Due', due, Colors.red),
-                ],
-              ),
-              const SizedBox(height: 10),
-              LinearProgressIndicator(
-                value: percent > 1 ? 1 : percent,
-                backgroundColor: Colors.grey[300],
-                color: Colors.green,
-                minHeight: 8,
-              ),
+                  /// Fee Summary
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildFeeLabel('Total Fee', totalFee, Colors.black),
+                      _buildFeeLabel('Paid', amountPaid, Colors.green),
+                      _buildFeeLabel('Due', due, Colors.red),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(
+                    value: percent.clamp(0.0, 1.0),
+                    backgroundColor: Colors.grey[300],
+                    color: Colors.green,
+                    minHeight: 8,
+                  ),
 
-              const SizedBox(height: 30),
-              const Text(
-                'Payment Amount',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _paymentController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: 'Enter payment amount',
-                ),
-              ),
-              const SizedBox(height: 20),
+                  const SizedBox(height: 30),
 
-              /// Update Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: updatePayment,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  const Text(
+                    'Payment Amount',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _paymentController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter payment amount',
                     ),
                   ),
-                  icon: const Icon(Icons.currency_rupee),
-                  label: const Text('Update Payment'),
-                ),
-              ),
+                  const SizedBox(height: 20),
 
-              const SizedBox(height: 16),
+                  /// Update Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _updatePayment(amountPaid),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.currency_rupee),
+                      label: const Text('Update Payment'),
+                    ),
+                  ),
 
-              /// WhatsApp Summary Button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // Optional: WhatsApp integration logic
-                  },
-                  icon: const Icon(Icons.chat, color: Colors.green),
-                  label: const Text('Send PDF Summary via WhatsApp'),
-                ),
+                  const SizedBox(height: 16),
+
+                  /// WhatsApp Share Button Placeholder
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Optional: add WhatsApp logic
+                      },
+                      icon: const Icon(Icons.chat, color: Colors.green),
+                      label: const Text('Send PDF Summary via WhatsApp'),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

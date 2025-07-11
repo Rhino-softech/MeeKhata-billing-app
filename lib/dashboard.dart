@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import 'add_student_page.dart';
 import 'course_page.dart';
 import 'invoice_page.dart';
-// import 'reports_page.dart';
-// import 'settings_page.dart';
+import 'reports_page.dart';
+import 'settings_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String? userName;
@@ -104,12 +104,18 @@ class _DashboardPageState extends State<DashboardPage> {
           MaterialPageRoute(builder: (_) => InvoicesPage()),
         );
         break;
-      // case 3:
-      //   Navigator.push(context, MaterialPageRoute(builder: (_) => ReportsPage()));
-      //   break;
-      // case 4:
-      //   Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsPage()));
-      //   break;
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ReportsPage()),
+        );
+        break;
+      case 4:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => SettingsPage()),
+        );
+        break;
     }
   }
 

@@ -1,9 +1,14 @@
+import 'package:billing_app/settings_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'add_course_modal.dart';
 import 'dashboard.dart';
 import 'student_details_page.dart';
 import 'invoice_page.dart';
+import 'batches_page.dart';
+import 'reports_page.dart';
+import 'settings_page.dart';
 
 class CoursesPage extends StatefulWidget {
   final String? userName;
@@ -22,27 +27,65 @@ class _CoursesPageState extends State<CoursesPage> {
   @override
   void initState() {
     super.initState();
-    fetchCoursesFromFirestore();
+    fetchCoursesData();
   }
 
-  void fetchCoursesFromFirestore() async {
-    final snapshot =
+  Future<void> fetchCoursesData() async {
+    final courseSnap =
         await FirebaseFirestore.instance.collection('course_details').get();
 
-    final formattedCourses =
-        snapshot.docs.map((doc) {
-          final data = doc.data();
+    final enrollSnap =
+        await FirebaseFirestore.instance
+            .collection('student_enroll_details')
+            .get();
+
+    Map<String, Map<String, dynamic>> stats = {};
+
+    for (var doc in enrollSnap.docs) {
+      final data = doc.data();
+      final courseName = data['course_name'];
+      final totalFees = (data['total_fees'] ?? 0).toDouble();
+      final amountPaid = (data['amount_paid'] ?? 0).toDouble();
+
+      if (courseName == null) continue;
+
+      stats[courseName] ??= {
+        'totalFee': 0.0,
+        'collected': 0.0,
+        'students': 0,
+        'batches': 0,
+      };
+
+      stats[courseName]!['totalFee'] += totalFees;
+      stats[courseName]!['collected'] += amountPaid;
+      stats[courseName]!['students'] += 1;
+    }
+
+    for (var doc in courseSnap.docs) {
+      final data = doc.data();
+      final name = data['name'] ?? 'Unknown';
+      final count = data['count'] ?? 0;
+
+      stats[name] ??= {'totalFee': 0.0, 'collected': 0.0, 'students': 0};
+
+      stats[name]!['batches'] = count;
+    }
+
+    final result =
+        stats.entries.map((entry) {
+          final name = entry.key;
+          final data = entry.value;
           return {
-            'name': data['name'] ?? 'Unknown',
-            'students': 0,
-            'totalFee': 0.0,
-            'collected': 0.0,
-            'batches': 0,
+            'name': name,
+            'students': data['students'],
+            'totalFee': data['totalFee'],
+            'collected': data['collected'],
+            'batches': data['batches'],
           };
         }).toList();
 
     setState(() {
-      courses = formattedCourses;
+      courses = result;
     });
   }
 
@@ -53,7 +96,7 @@ class _CoursesPageState extends State<CoursesPage> {
       _selectedIndex = index;
     });
 
-    Widget targetPage;
+    Widget? targetPage;
     switch (index) {
       case 0:
         targetPage = DashboardPage(
@@ -66,25 +109,35 @@ class _CoursesPageState extends State<CoursesPage> {
       case 2:
         targetPage = InvoicesPage();
         break;
+      case 3:
+        targetPage = ReportsPage();
+        break;
+      case 4:
+        targetPage = SettingsPage();
+        break;
       default:
         return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => targetPage),
-    );
+    if (targetPage != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => targetPage!),
+      );
+    }
   }
 
   void _openAddCourseDialog() {
     showDialog(
       context: context,
-      builder: (context) => AddCourseModal(onSubmit: fetchCoursesFromFirestore),
+      builder: (context) => AddCourseModal(onSubmit: fetchCoursesData),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final formatCurrency = NumberFormat.decimalPattern('en_IN');
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
       appBar: AppBar(
@@ -94,7 +147,7 @@ class _CoursesPageState extends State<CoursesPage> {
         elevation: 0.5,
         actions: [
           IconButton(
-            onPressed: fetchCoursesFromFirestore,
+            onPressed: fetchCoursesData,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -112,12 +165,13 @@ class _CoursesPageState extends State<CoursesPage> {
                 itemBuilder: (context, index) {
                   final course = courses[index];
                   final double percentage =
-                      course['collected'] /
-                      course['totalFee'].clamp(1, double.infinity);
+                      course['totalFee'] == 0
+                          ? 0.0
+                          : course['collected'] / course['totalFee'];
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
@@ -133,7 +187,7 @@ class _CoursesPageState extends State<CoursesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        /// Title + Batch & Student Tags + Icons
+                        /// Title + Tags
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -141,7 +195,7 @@ class _CoursesPageState extends State<CoursesPage> {
                               child: Text(
                                 course['name'],
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -149,7 +203,7 @@ class _CoursesPageState extends State<CoursesPage> {
                             Row(
                               children: [
                                 _buildTag('${course['batches']} batches'),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 6),
                                 _buildTag('${course['students']} students'),
                                 IconButton(
                                   onPressed: () {},
@@ -171,25 +225,52 @@ class _CoursesPageState extends State<CoursesPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
 
                         /// Fees row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Total: ₹${course['totalFee'].toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            RichText(
+                              text: TextSpan(
+                                text: 'Total Fee\n',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '₹${formatCurrency.format(course['totalFee'])}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              'Collected: ₹${course['collected'].toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.green,
+                            RichText(
+                              text: TextSpan(
+                                text: 'Collected\n',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '₹${formatCurrency.format(course['collected'])}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -208,7 +289,7 @@ class _CoursesPageState extends State<CoursesPage> {
                         ),
                         const SizedBox(height: 10),
 
-                        /// View Batches
+                        /// View Batches Button
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
@@ -217,7 +298,7 @@ class _CoursesPageState extends State<CoursesPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder:
-                                      (_) => StudentDetailsPage(
+                                      (_) => BatchesPage(
                                         courseName: course['name'],
                                       ),
                                 ),

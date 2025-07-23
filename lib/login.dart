@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup.dart';
-import 'dashboard.dart'; // Create this file separately
+import 'dashboard.dart'; // Admin dashboard
+import 'package:billing_app/tutor/tutor_dashboard.dart'; // Tutor dashboard
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -39,16 +40,28 @@ class _LoginPageState extends State<LoginPage> {
 
       if (userDoc.exists) {
         final userData = userDoc.data();
-        final userName = userData?['name'] ?? 'No Name';
+        final userName = userData?['name'] ?? '';
         final email = userData?['email'];
+        final role = userData?['role']?.toString().toLowerCase();
 
-        // ✅ Navigate to dashboard
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DashboardPage(userName: userName, email: email),
-          ),
-        );
+        // ✅ Navigate based on 'role'
+        if (role == 'admin') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DashboardPage(userName: userName, email: email),
+            ),
+          );
+        } else if (role == 'tutor') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const TutorDashboardPage()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unknown role, access denied')),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('User details not found in Firestore')),
@@ -157,8 +170,13 @@ class _LoginPageState extends State<LoginPage> {
                         icon: const Icon(Icons.login),
                         label:
                             _loading
-                                ? const CircularProgressIndicator(
-                                  color: Colors.white,
+                                ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
                                 )
                                 : const Text("Sign In"),
                       ),

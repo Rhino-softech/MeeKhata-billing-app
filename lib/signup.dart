@@ -22,9 +22,16 @@ class _SignupPageState extends State<SignupPage> {
   bool _loading = false;
   String? _error;
 
+  final List<String> _roles = ['Admin', 'Tutor'];
+  String? _selectedRole;
+
   Future<void> _register() async {
     if (_passwordController.text != _retypePasswordController.text) {
       setState(() => _error = "Passwords do not match");
+      return;
+    }
+    if (_selectedRole == null) {
+      setState(() => _error = "Please select a role");
       return;
     }
 
@@ -39,11 +46,11 @@ class _SignupPageState extends State<SignupPage> {
         password: _passwordController.text,
       );
 
-      // Save user details in Firestore
       await _firestore.collection('user_details').doc(userCred.user!.uid).set({
         'uid': userCred.user!.uid,
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
+        'role': _selectedRole,
         'created_at': FieldValue.serverTimestamp(),
       });
 
@@ -118,6 +125,27 @@ class _SignupPageState extends State<SignupPage> {
                     hintText: 'Enter your email',
                     border: OutlineInputBorder(),
                   ),
+                ),
+                const SizedBox(height: 20),
+
+                DropdownButtonFormField<String>(
+                  value: _selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Role',
+                    border: OutlineInputBorder(),
+                  ),
+                  items:
+                      _roles.map((role) {
+                        return DropdownMenuItem<String>(
+                          value: role,
+                          child: Text(role),
+                        );
+                      }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedRole = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 20),
 

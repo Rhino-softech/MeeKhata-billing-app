@@ -1,5 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import 'dart:typed_data';
 import 'dashboard.dart';
 import 'course_page.dart';
 import 'reports_page.dart';
@@ -23,7 +27,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
     super.initState();
     _loadCourses();
 
-    // Update search query in real-time
     _searchController.addListener(() {
       setState(() {
         searchQuery = _searchController.text.trim().toLowerCase();
@@ -45,6 +48,29 @@ class _InvoicesPageState extends State<InvoicesPage> {
     setState(() {
       courseOptions = ['All Courses', ...courseNames];
     });
+  }
+
+  Future<Uint8List> generateInvoicePdf(Map<String, dynamic> data) async {
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        build:
+            (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('Student Invoice', style: pw.TextStyle(fontSize: 24)),
+                pw.SizedBox(height: 16),
+                pw.Text('Name: ${data['name']}'),
+                pw.Text('Course: ${data['course']}'),
+                pw.Text('Date: ${DateTime.now().toString().split(' ')[0]}'),
+                pw.Text('Total Fees: Rs.${data['total']}'),
+                pw.Text('Amount Paid: Rs.${data['paid']}'),
+                pw.Text('Due Amount: Rs.${data['due']}'),
+              ],
+            ),
+      ),
+    );
+    return pdf.save();
   }
 
   @override
@@ -109,7 +135,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              /// Search Field
               TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
@@ -121,8 +146,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              /// Course Dropdown Filter
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
@@ -151,8 +174,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              /// Invoice Cards or Empty Message
               if (invoices.isEmpty)
                 const Center(
                   child: Padding(
@@ -175,7 +196,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 2, // Set this to the current page index
+        currentIndex: 2,
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacement(
@@ -195,7 +216,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
           } else if (index == 3) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const ReportsPage()),
+              MaterialPageRoute(builder: (_) => const TutorPage()),
             );
           } else if (index == 4) {
             Navigator.pushReplacement(
@@ -242,7 +263,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// Name + Status
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -272,31 +292,33 @@ class _InvoicesPageState extends State<InvoicesPage> {
           const SizedBox(height: 4),
           Text(data['course'], style: const TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
-
-          /// Total, Paid, Due, Transactions
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Total: ₹${data['total']}'),
-              Text('Due: ₹${data['due']}'),
+              Text('Total: Rs.${data['total']}'),
+              Text('Due: Rs.${data['due']}'),
             ],
           ),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Paid: ₹${data['paid']}'),
+              Text('Paid: Rs.${data['paid']}'),
               Text('Transactions: ${data['transactions']}'),
             ],
           ),
           const SizedBox(height: 12),
-
-          /// Action Buttons
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () async {
+                    final pdfData = await generateInvoicePdf(data);
+                    await Printing.sharePdf(
+                      bytes: pdfData,
+                      filename: 'invoice.pdf',
+                    );
+                  },
                   icon: const Icon(Icons.picture_as_pdf),
                   label: const Text('PDF'),
                 ),
@@ -304,7 +326,13 @@ class _InvoicesPageState extends State<InvoicesPage> {
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () async {
+                    final pdfData = await generateInvoicePdf(data);
+                    await Printing.sharePdf(
+                      bytes: pdfData,
+                      filename: 'invoice.pdf',
+                    );
+                  },
                   icon: const Icon(Icons.chat, color: Colors.green),
                   label: const Text('WhatsApp'),
                 ),

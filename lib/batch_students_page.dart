@@ -167,7 +167,14 @@ class BatchStudentsPage extends StatelessWidget {
                 final double paid = (student['amount_paid'] ?? 0).toDouble();
                 final double total = (student['total_fees'] ?? 0).toDouble();
                 final double due = total - paid;
-                final double progress = total == 0 ? 0 : paid / total;
+
+                // ✅ Calculate attendance %
+                final int totalClasses = student['total_classes'] ?? 0;
+                final int attendedClasses = student['attended_classes'] ?? 0;
+                final int attendancePercent =
+                    totalClasses == 0
+                        ? 0
+                        : ((attendedClasses / totalClasses) * 100).round();
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -217,7 +224,25 @@ class BatchStudentsPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
 
-                      /// Payment Details
+                      /// Attendance % (Replaces Progress)
+                      Row(
+                        children: [
+                          const Text(
+                            "Attendance: ",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            "$attendancePercent%",
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      /// Payment Summary
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -236,13 +261,6 @@ class BatchStudentsPage extends StatelessWidget {
                             color: Colors.red,
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 6),
-                      LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 6,
-                        color: Colors.green,
-                        backgroundColor: Colors.grey[300],
                       ),
                       const SizedBox(height: 10),
 
@@ -273,7 +291,7 @@ class BatchStudentsPage extends StatelessWidget {
                           IconButton(
                             icon: const Icon(Icons.add),
                             onPressed: () {
-                              // Optional: Add transaction or notes
+                              // Optional: Add extra actions
                             },
                           ),
                         ],

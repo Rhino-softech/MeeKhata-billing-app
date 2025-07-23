@@ -105,10 +105,7 @@ class _DashboardPageState extends State<DashboardPage> {
         );
         break;
       case 3:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => ReportsPage()),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (_) => TutorPage()));
         break;
       case 4:
         Navigator.push(

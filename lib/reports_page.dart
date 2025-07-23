@@ -1,27 +1,194 @@
-import 'package:billing_app/settings_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'dashboard.dart';
 import 'course_page.dart';
 import 'invoice_page.dart';
+import 'settings_page.dart';
 
-class ReportsPage extends StatefulWidget {
-  const ReportsPage({super.key});
+class TutorPage extends StatefulWidget {
+  const TutorPage({super.key});
 
   @override
-  State<ReportsPage> createState() => _ReportsPageState();
+  State<TutorPage> createState() => _TutorPageState();
 }
 
-class _ReportsPageState extends State<ReportsPage> {
-  String searchQuery = '';
-  String filterType = 'All'; // Options: All, Due, Completed
+class _TutorPageState extends State<TutorPage> {
+  bool showTutors = true;
+
+  void _showAddTutorDialog() {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: const Text("Add Tutor"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Name"),
+                ),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: "Email"),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  final email = emailController.text.trim();
+
+                  if (name.isNotEmpty && email.isNotEmpty) {
+                    await FirebaseFirestore.instance.collection('tutors').add({
+                      'name': name,
+                      'email': email,
+                      'courses': [],
+                    });
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text("Add"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildTutorCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final courses = data['courses'] as List<dynamic>? ?? [];
+
+    int totalStudents = 0;
+    for (var c in courses) {
+      totalStudents += ((c['student_count'] ?? 0) as num).toInt();
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data['name'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.group),
+                  tooltip: 'View Students',
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  tooltip: 'Edit Tutor',
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  tooltip: 'Delete Tutor',
+                  onPressed:
+                      () =>
+                          FirebaseFirestore.instance
+                              .collection('tutors')
+                              .doc(doc.id)
+                              .delete(),
+                ),
+              ],
+            ),
+            Text(data['email'], style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Chip(label: Text('$totalStudents Students')),
+                const SizedBox(width: 8),
+                Chip(label: Text('${courses.length} Courses')),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text('Courses:'),
+            for (var course in courses)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: Text(
+                  '• ${course['course_name']} (${course['batch_count']} batch)',
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTutorsList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('tutors').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs;
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Tutors',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddTutorDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Tutor'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...docs.map(_buildTutorCard).toList(),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentsTabPlaceholder() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          "Student tab coming soon...",
+          style: TextStyle(fontSize: 16),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Reports',
+          "Tutors",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -29,127 +196,47 @@ class _ReportsPageState extends State<ReportsPage> {
         elevation: 0.5,
         actions: const [Icon(Icons.refresh)],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream:
-            FirebaseFirestore.instance
-                .collection('student_enroll_details')
-                .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final docs = snapshot.data!.docs;
-          final students =
-              docs
-                  .map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final total = (data['total_fees'] ?? 0).toDouble();
-                    final paid = (data['amount_paid'] ?? 0).toDouble();
-                    final due = total - paid;
-                    final name = data['name'] ?? 'Unnamed';
-                    final course = data['course_name'] ?? 'Unknown Course';
-                    final status = due <= 0 ? 'Completed' : 'Due';
-
-                    return {
-                      'name': name,
-                      'course': course,
-                      'paid': paid,
-                      'due': due,
-                      'status': status,
-                    };
-                  })
-                  .where((entry) {
-                    final matchesSearch =
-                        entry['name'].toString().toLowerCase().contains(
-                          searchQuery.toLowerCase(),
-                        ) ||
-                        entry['course'].toString().toLowerCase().contains(
-                          searchQuery.toLowerCase(),
-                        );
-                    final matchesFilter =
-                        filterType == 'All' ||
-                        entry['status'] ==
-                            (filterType == 'Completed' ? 'Completed' : 'Due');
-                    return matchesSearch && matchesFilter;
-                  })
-                  .toList();
-
-          final totalCollected = students.fold<double>(
-            0,
-            (sum, s) => sum + (s['paid'] as double),
-          );
-          final totalDue = students.fold<double>(
-            0,
-            (sum, s) => sum + (s['due'] as double),
-          );
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                /// Search Bar
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search students or courses...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  onChanged: (value) => setState(() => searchQuery = value),
-                ),
-                const SizedBox(height: 12),
-
-                /// Filters
-                Row(
+      body: Column(
+        children: [
+          const SizedBox(height: 10),
+          ToggleButtons(
+            isSelected: [showTutors, !showTutors],
+            onPressed: (index) => setState(() => showTutors = index == 0),
+            borderRadius: BorderRadius.circular(12),
+            selectedColor: Colors.white,
+            fillColor: Colors.black,
+            color: Colors.black,
+            children: const [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
                   children: [
-                    _buildFilterButton('All'),
-                    const SizedBox(width: 8),
-                    _buildFilterButton('Due'),
-                    const SizedBox(width: 8),
-                    _buildFilterButton('Completed'),
+                    Icon(Icons.school),
+                    SizedBox(width: 6),
+                    Text("Tutors"),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                /// Totals
-                Row(
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
                   children: [
-                    Expanded(
-                      child: _buildSummaryCard(
-                        'Total Collected',
-                        totalCollected,
-                        Colors.green,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildSummaryCard(
-                        'Total Pending',
-                        totalDue,
-                        Colors.red,
-                      ),
-                    ),
+                    Icon(Icons.person),
+                    SizedBox(width: 6),
+                    Text("Students"),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                /// Student Cards
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: students.length,
-                    itemBuilder: (context, index) {
-                      final s = students[index];
-                      return _buildStudentCard(s);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child:
+                showTutors
+                    ? _buildTutorsList()
+                    : _buildStudentsTabPlaceholder(),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 3,
@@ -178,8 +265,8 @@ class _ReportsPageState extends State<ReportsPage> {
         },
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
@@ -188,110 +275,12 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
           BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Invoices'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Reports',
+            icon: Icon(Icons.supervisor_account),
+            label: 'Tutors',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Settings',
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildFilterButton(String label) {
-    final isSelected = filterType == label;
-    return Expanded(
-      child: ElevatedButton(
-        onPressed: () => setState(() => filterType = label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected ? Colors.black : Colors.white,
-          foregroundColor: isSelected ? Colors.white : Colors.black,
-          side: BorderSide(color: Colors.grey.shade300),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: Text(label == 'Due' ? 'Due Payments' : label),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(String label, double amount, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Text(
-            '₹${amount.toStringAsFixed(0)}',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStudentCard(Map<String, dynamic> s) {
-    final isCompleted = s['status'] == 'Completed';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-        color: Colors.white,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// Name + Badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                s['name'],
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: isCompleted ? Colors.black : Colors.red,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  isCompleted ? 'Paid' : 'Due',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(s['course'], style: const TextStyle(color: Colors.black54)),
-          const SizedBox(height: 6),
-          Text(
-            'Paid: ₹${s['paid'].toStringAsFixed(0)}     Due: ₹${s['due'].toStringAsFixed(0)}',
-            style: const TextStyle(fontSize: 13),
           ),
         ],
       ),

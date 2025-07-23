@@ -153,7 +153,7 @@ class _SettingsPageState extends State<SettingsPage> {
             case 3:
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const ReportsPage()),
+                MaterialPageRoute(builder: (_) => const TutorPage()),
               );
               break;
             case 4:

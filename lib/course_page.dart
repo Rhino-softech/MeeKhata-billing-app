@@ -110,7 +110,7 @@ class _CoursesPageState extends State<CoursesPage> {
         targetPage = InvoicesPage();
         break;
       case 3:
-        targetPage = ReportsPage();
+        targetPage = TutorPage();
         break;
       case 4:
         targetPage = SettingsPage();

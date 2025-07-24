@@ -73,21 +73,10 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 }
 
 // -----------------------------
-// ✅ Attendance Page
+// ✅ Attendance Page (Now Handles Array Field)
 // -----------------------------
 class AttendancePage extends StatelessWidget {
   const AttendancePage({super.key});
-
-  // Fetch batch count from the subcollection "batches"
-  Future<int> _fetchBatchCount(String courseId) async {
-    final snapshot =
-        await FirebaseFirestore.instance
-            .collection('course_details')
-            .doc(courseId)
-            .collection('batches')
-            .get();
-    return snapshot.docs.length;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,33 +121,27 @@ class AttendancePage extends StatelessWidget {
                     final courseId = doc.id;
                     final courseName = data['name'] ?? 'Untitled Course';
 
-                    return FutureBuilder<int>(
-                      future: _fetchBatchCount(courseId),
-                      builder: (context, batchSnapshot) {
-                        if (!batchSnapshot.hasData) {
-                          return const SizedBox(); // Optionally add loader
-                        }
+                    // 👇 Get batch count from array
+                    final List<dynamic> batches = data['batches'] ?? [];
+                    final int batchCount = batches.length;
 
-                        final batchCount = batchSnapshot.data!;
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => BatchTutorPage(
-                                      courseId: courseId,
-                                      courseName: courseName,
-                                    ),
-                              ),
-                            );
-                          },
-                          child: _buildCourseCard(
-                            courseName,
-                            '$batchCount batches available',
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => BatchTutorPage(
+                                  courseId: courseId,
+                                  courseName: courseName,
+                                ),
                           ),
                         );
                       },
+                      child: _buildCourseCard(
+                        courseName,
+                        '$batchCount batches available',
+                      ),
                     );
                   },
                 );

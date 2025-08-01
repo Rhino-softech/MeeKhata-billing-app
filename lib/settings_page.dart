@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dashboard.dart';
 import 'course_page.dart';
 import 'invoice_page.dart';
-import 'reports_page.dart';
+import 'tutor_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});

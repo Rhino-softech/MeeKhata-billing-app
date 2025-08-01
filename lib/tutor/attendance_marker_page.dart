@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 class AttendanceMarkPage extends StatefulWidget {
   final String courseName;
@@ -25,8 +25,36 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
   List<Map<String, dynamic>> unmarkedToday = [];
   bool attendanceAlreadyMarked = false;
   String? filter = 'all';
+  Position? currentPosition;
+  bool selfMarkingEnabled = false;
 
   final String today = DateTime.now().toIso8601String().split('T').first;
+
+  String get selfMarkingDocId => "${widget.courseName}_${widget.batchName}";
+
+  Future<void> fetchSelfMarkingStatus() async {
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('self_marking_settings')
+            .doc(selfMarkingDocId)
+            .get();
+
+    setState(() {
+      selfMarkingEnabled =
+          doc.exists ? (doc.data()?['self_marking_enabled'] ?? false) : false;
+    });
+  }
+
+  Future<void> updateSelfMarkingStatus(bool value) async {
+    await FirebaseFirestore.instance
+        .collection('self_marking_settings')
+        .doc(selfMarkingDocId)
+        .set({'self_marking_enabled': value, 'last_updated': Timestamp.now()});
+
+    setState(() {
+      selfMarkingEnabled = value;
+    });
+  }
 
   Future<void> fetchStudents() async {
     markedToday.clear();
@@ -59,7 +87,7 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
             });
           } else {
             unmarkedToday.add({'id': id, 'name': name, 'email': email});
-            attendanceMap[id] = true; // Default to present
+            attendanceMap[id] = true;
           }
           return {'id': id, 'name': name, 'email': email};
         }).toList();
@@ -78,6 +106,8 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
 
   Future<void> saveAttendance() async {
     if (attendanceAlreadyMarked) return;
+
+    await getCurrentLocation();
 
     for (var entry in attendanceMap.entries) {
       final studentId = entry.key;
@@ -108,6 +138,8 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
           'present_count': presentCount,
           'absent_count': absentCount,
           'last_updated': Timestamp.now(),
+          'marked_latitude': currentPosition?.latitude,
+          'marked_longitude': currentPosition?.longitude,
         });
       }
     }
@@ -116,12 +148,11 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
       context,
     ).showSnackBar(const SnackBar(content: Text('Attendance saved!')));
 
-    await fetchStudents(); // Refresh UI
+    await fetchStudents();
   }
 
   Future<void> exportPresentStudents() async {
     final presentStudents = markedToday.where((s) => s['isPresent'] == true);
-
     final csv = StringBuffer();
     csv.writeln('Name,Email');
     for (var student in presentStudents) {
@@ -132,14 +163,29 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
     final filePath = '${directory.path}/present_students_$today.csv';
     final file = File(filePath);
     await file.writeAsString(csv.toString());
+  }
 
-    Share.shareXFiles([XFile(filePath)], text: 'Present Students for $today');
+  Future<void> getCurrentLocation() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
+      currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+    }
   }
 
   @override
   void initState() {
     super.initState();
     fetchStudents();
+    fetchSelfMarkingStatus();
+    getCurrentLocation();
   }
 
   @override
@@ -147,7 +193,6 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
     final todayDate = DateTime.now();
     final formattedDate =
         "${todayDate.day.toString().padLeft(2, '0')}/${todayDate.month.toString().padLeft(2, '0')}/${todayDate.year}";
-
     final presentCount = attendanceMap.values.where((v) => v).length;
     final absentCount = attendanceMap.values.where((v) => !v).length;
 
@@ -172,13 +217,16 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                       ),
                       elevation: 2,
                       child: ListTile(
-                        title: const Text("Attendance Settings"),
+                        title: const Text("Student Self-Marking"),
                         subtitle: Text(
-                          attendanceAlreadyMarked
-                              ? "Today's attendance is already marked"
-                              : "Student Self-Marking",
+                          selfMarkingEnabled ? "Enabled" : "Disabled",
                         ),
-                        trailing: Switch(value: false, onChanged: (_) {}),
+                        trailing: Switch(
+                          value: selfMarkingEnabled,
+                          onChanged: (value) => updateSelfMarkingStatus(value),
+                          activeColor: Colors.white,
+                          activeTrackColor: const Color(0xFF0A1128),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -205,7 +253,7 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                               if (!attendanceAlreadyMarked)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0,
+                                    horizontal: 16,
                                   ),
                                   child: Row(
                                     mainAxisAlignment:
@@ -220,7 +268,7 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                               if (attendanceAlreadyMarked) ...[
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0,
+                                    horizontal: 16,
                                   ),
                                   child: Row(
                                     children: [
@@ -283,7 +331,6 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                                         ),
                                       ),
                                     ),
-                                const SizedBox(height: 8),
                                 Center(
                                   child: ElevatedButton.icon(
                                     onPressed: exportPresentStudents,
@@ -295,14 +342,11 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
                               ],
                               if (!attendanceAlreadyMarked &&
                                   unmarkedToday.isNotEmpty) ...[
                                 const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16.0,
-                                  ),
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
                                   child: Text(
                                     "🕓 Mark Attendance",
                                     style: TextStyle(
@@ -354,7 +398,7 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                                       ],
                                     ),
                                   );
-                                }).toList(),
+                                }),
                               ],
                             ],
                           ),
@@ -366,7 +410,7 @@ class _AttendanceMarkPageState extends State<AttendanceMarkPage> {
                       onPressed:
                           attendanceAlreadyMarked ? null : saveAttendance,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0A1128), // Navy
+                        backgroundColor: const Color(0xFF0A1128),
                         foregroundColor: Colors.white,
                         minimumSize: const Size.fromHeight(50),
                         shape: RoundedRectangleBorder(

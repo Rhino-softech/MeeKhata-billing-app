@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup.dart';
 import 'dashboard.dart'; // Admin dashboard
 import 'package:billing_app/tutor/tutor_dashboard.dart'; // Tutor dashboard
+import 'create_institute.dart'; // New import
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -39,13 +40,13 @@ class _LoginPageState extends State<LoginPage> {
               .get();
 
       if (userDoc.exists) {
-        final userData = userDoc.data();
+        final Map<String, dynamic>? userData = userDoc.data();
+
         final userName = userData?['name'] ?? '';
         final email = userData?['email'];
         final role = userData?['role']?.toString().toLowerCase();
 
-        // ✅ Navigate based on 'role'
-        if (role == 'admin') {
+        if (role == 'institute') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -86,7 +87,6 @@ class _LoginPageState extends State<LoginPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Login Card
               Container(
                 margin: const EdgeInsets.all(20),
                 padding: const EdgeInsets.symmetric(
@@ -130,8 +130,6 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextStyle(color: Colors.grey),
                     ),
                     const SizedBox(height: 30),
-
-                    // Email Field
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
@@ -141,8 +139,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // Password Field
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -153,12 +149,9 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
                     if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 15),
-
-                    // Sign In Button
                     SizedBox(
                       width: double.infinity,
                       height: 45,
@@ -182,8 +175,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-
-                    // Sign up Text Button
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -193,10 +184,20 @@ class _LoginPageState extends State<LoginPage> {
                       },
                       child: const Text("Don't have an account? Sign up"),
                     ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CreateInstitutePage(),
+                          ),
+                        );
+                      },
+                      child: const Text("Create Institute Account"),
+                    ),
                   ],
                 ),
               ),
-
               // Demo Mode Card
               Container(
                 margin: const EdgeInsets.only(top: 10),

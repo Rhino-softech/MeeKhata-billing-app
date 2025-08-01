@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'add_student_page.dart';
 import 'course_page.dart';
 import 'invoice_page.dart';
-import 'reports_page.dart';
+import 'tutor_page.dart';
 import 'settings_page.dart';
 
 class DashboardPage extends StatefulWidget {

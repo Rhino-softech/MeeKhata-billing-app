@@ -7,7 +7,7 @@ import 'dashboard.dart';
 import 'student_details_page.dart';
 import 'invoice_page.dart';
 import 'batches_page.dart';
-import 'reports_page.dart';
+import 'tutor_page.dart';
 import 'settings_page.dart';
 
 class CoursesPage extends StatefulWidget {
@@ -119,12 +119,10 @@ class _CoursesPageState extends State<CoursesPage> {
         return;
     }
 
-    if (targetPage != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => targetPage!),
-      );
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => targetPage!),
+    );
   }
 
   void _openAddCourseDialog() {

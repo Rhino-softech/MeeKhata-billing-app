@@ -1,41 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OverviewPage extends StatelessWidget {
   const OverviewPage({super.key});
 
+  Future<Map<String, Map<String, dynamic>>> fetchBatches() async {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('student_enroll_details')
+            .get();
+
+    final Map<String, Map<String, dynamic>> batchData = {};
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final courseName = data['course_name'];
+      final batchName = data['batch_name'];
+      final fullBatchName = "$batchName - $courseName";
+
+      if (!batchData.containsKey(fullBatchName)) {
+        batchData[fullBatchName] = {
+          'name': fullBatchName,
+          'students': 1,
+          'schedule':
+              'Schedule TBD', // You can update this with actual schedule data if available
+        };
+      } else {
+        batchData[fullBatchName]!['students'] += 1;
+      }
+    }
+
+    return batchData;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final batches = [
-      {
-        'name': 'Batch A - Math',
-        'students': 30,
-        'schedule': 'Mon, Wed, Fri - 10:00 AM',
-      },
-      {
-        'name': 'Batch B - Physics',
-        'students': 25,
-        'schedule': 'Tue, Thu, Sat - 2:00 PM',
-      },
-    ];
+    return FutureBuilder<Map<String, Map<String, dynamic>>>(
+      future: fetchBatches(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Welcome back, John Tutor',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("No batch data available."));
+        }
+
+        final batches = snapshot.data!.values.toList();
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Welcome back, John Tutor',
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'My Batches',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ...batches.map((batch) => _buildBatchCard(batch)),
+            ],
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'My Batches',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          ...batches.map((batch) => _buildBatchCard(batch)).toList(),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -94,7 +126,9 @@ class OverviewPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: () {
+              // TODO: Add navigation to detailed batch page
+            },
             icon: const Icon(Icons.remove_red_eye),
             label: const Text("View Details"),
             style: OutlinedButton.styleFrom(

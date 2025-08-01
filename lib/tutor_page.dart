@@ -101,7 +101,7 @@ class _TutorPageState extends State<TutorPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "Course ${courseIndex + 1}",
+                                  "Course \${courseIndex + 1}",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -217,6 +217,7 @@ class _TutorPageState extends State<TutorPage> {
                                     'email': email,
                                     'phone': phone,
                                     'courses': courses,
+                                    'students': 0,
                                     'timestamp': FieldValue.serverTimestamp(),
                                   });
                               Navigator.pop(context);
@@ -269,13 +270,75 @@ class _TutorPageState extends State<TutorPage> {
                   itemCount: tutors.length,
                   itemBuilder: (context, index) {
                     final data = tutors[index].data() as Map<String, dynamic>;
+                    final courses = data['courses'] as List<dynamic>? ?? [];
                     return Card(
                       margin: const EdgeInsets.all(8.0),
-                      child: ListTile(
-                        title: Text(data['name'] ?? ''),
-                        subtitle: Text(data['email'] ?? ''),
-                        trailing: Text(
-                          "${data['courses']?.length ?? 0} courses",
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      data['name'] ?? '',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(data['email'] ?? ''),
+                                    const Text('Password: ••••••••'),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.group),
+                                      onPressed: () {},
+                                      tooltip: 'View Students',
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit),
+                                      onPressed: () {},
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {},
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Chip(
+                                  label: Text(
+                                    "${data['students'] ?? 0} Students",
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Chip(label: Text("${courses.length} Courses")),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Courses:",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            ...courses.map(
+                              (c) => Text(
+                                "• ${c['courseName']} (${(c['batches'] as List?)?.length ?? 0} batch)",
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );

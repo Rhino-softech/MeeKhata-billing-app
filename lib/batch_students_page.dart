@@ -299,7 +299,7 @@ class BatchStudentsPage extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
 
               const SizedBox(height: 12),
               Center(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddCourseModal extends StatefulWidget {
   final VoidCallback onSubmit;
@@ -16,6 +17,7 @@ class _AddCourseModalState extends State<AddCourseModal> {
   String description = '';
   String fee = '';
   String duration = '';
+  String courseType = 'normal'; // default type
   List<Map<String, String>> batches = [];
 
   bool _isSubmitting = false;
@@ -198,9 +200,32 @@ class _AddCourseModalState extends State<AddCourseModal> {
                     hint: 'e.g., 3 months, 6 weeks',
                     onChanged: (val) => duration = val,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
-                  /// Batch List
+                  /// Course Type Dropdown
+                  DropdownButtonFormField<String>(
+                    value: courseType,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'normal',
+                        child: Text('Normal Course'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'addon',
+                        child: Text('Addon Course'),
+                      ),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Course Type *',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      if (val != null) setState(() => courseType = val);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  /// Batch Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -271,17 +296,47 @@ class _AddCourseModalState extends State<AddCourseModal> {
                                     if (_formKey.currentState!.validate()) {
                                       setState(() => _isSubmitting = true);
 
-                                      /// ✅ Firestore collection updated to `course_details`
-                                      await FirebaseFirestore.instance
-                                          .collection('course_details')
+                                      final currentUser =
+                                          FirebaseAuth.instance.currentUser;
+                                      final instituteId = currentUser?.uid;
+
+                                      if (instituteId == null) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Unable to identify current institute.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      final courseRef = await FirebaseFirestore
+                                          .instance
+                                          .collection('courses')
                                           .add({
                                             'name': name.trim(),
-                                            'description': description.trim(),
+                                            'type': courseType,
+                                            'institute_id': instituteId,
+                                            'created_at': Timestamp.now(),
                                             'fee': double.tryParse(fee) ?? 0.0,
                                             'duration': duration.trim(),
-                                            'batches': batches,
-                                            'created_at': Timestamp.now(),
                                           });
+
+                                      for (final batch in batches) {
+                                        await FirebaseFirestore.instance
+                                            .collection('batches')
+                                            .add({
+                                              'course_id': courseRef.id,
+                                              'institute_id': instituteId,
+                                              'name': batch['name'],
+                                              'time': batch['time'],
+                                              'tutor': batch['tutor'],
+                                              'created_at': Timestamp.now(),
+                                            });
+                                      }
 
                                       setState(() => _isSubmitting = false);
                                       Navigator.of(context).pop();

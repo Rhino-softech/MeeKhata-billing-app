@@ -56,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
         } else if (role == 'tutor') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const TutorDashboardPage()),
+            MaterialPageRoute(builder: (_) => const AttendancePage()),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(

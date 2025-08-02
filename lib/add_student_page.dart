@@ -20,14 +20,16 @@ class _AddStudentPageState extends State<AddStudentPage> {
   String? selectedCourse;
   String? selectedBatch;
   String? selectedTimeSlot;
+  bool isAssigned = false;
+  String assignedLabel = 'Unassigned';
+
   List<String> courses = [];
   List<String> batches = [];
-  List<String> timeSlots = [];
   bool isLoading = false;
   bool isFetchingBatches = false;
 
-  Map<String, String> courseIdMap = {}; // name -> id
-  Map<String, String> batchIdMap = {}; // batch name -> doc id
+  Map<String, String> courseIdMap = {};
+  Map<String, String> batchIdMap = {};
 
   @override
   void initState() {
@@ -39,7 +41,6 @@ class _AddStudentPageState extends State<AddStudentPage> {
     try {
       final snapshot =
           await FirebaseFirestore.instance.collection('course_details').get();
-
       final courseNames = <String>[];
       final courseIds = <String, String>{};
 
@@ -51,11 +52,13 @@ class _AddStudentPageState extends State<AddStudentPage> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         courses = courseNames;
         courseIdMap = courseIds;
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error fetching courses: $e')));
@@ -65,12 +68,12 @@ class _AddStudentPageState extends State<AddStudentPage> {
   void fetchBatches(String? courseName) async {
     if (courseName == null || courseName.isEmpty) return;
 
+    if (!mounted) return;
     setState(() {
       isFetchingBatches = true;
       selectedBatch = null;
       selectedTimeSlot = null;
       batches = [];
-      timeSlots = [];
       batchIdMap = {};
     });
 
@@ -84,8 +87,6 @@ class _AddStudentPageState extends State<AddStudentPage> {
               .doc(courseId)
               .get();
 
-      if (!docSnapshot.exists) return;
-
       final data = docSnapshot.data();
       if (data == null || !data.containsKey('batches')) return;
 
@@ -97,13 +98,12 @@ class _AddStudentPageState extends State<AddStudentPage> {
                 .map((b) => b['name'].toString())
                 .toList();
 
+        if (!mounted) return;
         setState(() {
           batches = batchNames;
-          isFetchingBatches = false;
         });
       }
 
-      // Fetch subcollection for time slots
       final batchDocs =
           await FirebaseFirestore.instance
               .collection('course_details')
@@ -113,12 +113,18 @@ class _AddStudentPageState extends State<AddStudentPage> {
 
       for (var doc in batchDocs.docs) {
         final name = doc.data()['name'];
-        final time = doc.data()['time']; // <-- updated here
+        final time = doc.data()['time'];
         if (name != null && time != null) {
           batchIdMap[name] = doc.id;
         }
       }
+
+      if (!mounted) return;
+      setState(() {
+        isFetchingBatches = false;
+      });
     } catch (e) {
+      if (!mounted) return;
       setState(() => isFetchingBatches = false);
       ScaffoldMessenger.of(
         context,
@@ -145,14 +151,16 @@ class _AddStudentPageState extends State<AddStudentPage> {
 
       if (slotDoc.exists) {
         final data = slotDoc.data();
-        final timeSlot = data?['time']; // <-- updated here
+        final timeSlot = data?['time'];
         if (timeSlot != null) {
+          if (!mounted) return;
           setState(() {
             selectedTimeSlot = timeSlot;
           });
         }
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error fetching time slot: $e')));
@@ -162,6 +170,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
   void addStudent() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (!mounted) return;
     setState(() => isLoading = true);
 
     try {
@@ -170,26 +179,30 @@ class _AddStudentPageState extends State<AddStudentPage> {
           'name': nameController.text.trim(),
           'course_name': selectedCourse,
           'batch_name': selectedBatch,
-          'time': selectedTimeSlot, // <-- updated here
+          'time': selectedTimeSlot,
           'total_fees': double.tryParse(feeController.text.trim()) ?? 0,
           'amount_paid': double.tryParse(amountPaidController.text.trim()) ?? 0,
           'phone': phoneController.text.trim(),
           'email': emailController.text.trim(),
+          'assigned': isAssigned,
           'enrollment_date': Timestamp.now(),
         },
       );
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Student added successfully!')),
       );
 
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error adding student: $e')));
     }
 
+    if (!mounted) return;
     setState(() => isLoading = false);
   }
 
@@ -227,88 +240,48 @@ class _AddStudentPageState extends State<AddStudentPage> {
                 ),
                 const SizedBox(height: 20),
 
-                const Text("Student Name"),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    hintText: "Enter student name",
-                    border: OutlineInputBorder(),
-                  ),
-                  validator:
-                      (value) =>
-                          value == null || value.isEmpty ? 'Required' : null,
-                ),
-
+                _buildTextField("Student Name", nameController, "Enter name"),
                 const SizedBox(height: 20),
-                const Text("Course"),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  value: selectedCourse,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                  hint: const Text("Select a course"),
-                  items:
-                      courses
-                          .map(
-                            (course) => DropdownMenuItem(
-                              value: course,
-                              child: Text(course),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) {
+
+                _buildDropdown(
+                  "Course",
+                  selectedCourse,
+                  courses,
+                  (val) {
                     setState(() {
-                      selectedCourse = value;
+                      selectedCourse = val;
                       selectedBatch = null;
                       selectedTimeSlot = null;
                     });
-                    fetchBatches(value);
+                    fetchBatches(val);
                   },
                   validator:
-                      (value) =>
-                          value == null ? 'Please select a course' : null,
+                      (val) => val == null ? 'Please select a course' : null,
                 ),
-
                 const SizedBox(height: 20),
-                const Text("Batch"),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  value: selectedBatch,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
+
+                _buildDropdown(
+                  "Batch",
+                  selectedBatch,
+                  batches,
+                  (val) {
+                    setState(() {
+                      selectedBatch = val;
+                      selectedTimeSlot = null;
+                    });
+                    fetchTimeSlot(val);
+                  },
                   hint:
                       isFetchingBatches
-                          ? const Text("Loading batches...")
+                          ? "Loading batches..."
                           : batches.isEmpty
-                          ? const Text("No batches available")
-                          : const Text("Select a batch"),
-                  items:
-                      batches
-                          .map(
-                            (batch) => DropdownMenuItem(
-                              value: batch,
-                              child: Text(batch),
-                            ),
-                          )
-                          .toList(),
-                  onChanged:
-                      isFetchingBatches || batches.isEmpty
-                          ? null
-                          : (value) {
-                            setState(() {
-                              selectedBatch = value;
-                              selectedTimeSlot = null;
-                            });
-                            fetchTimeSlot(value);
-                          },
+                          ? "No batches available"
+                          : "Select a batch",
                   validator:
-                      (value) => value == null ? 'Please select a batch' : null,
+                      (val) => val == null ? 'Please select a batch' : null,
                 ),
-
                 const SizedBox(height: 20),
+
                 const Text("Time Slot"),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -318,64 +291,66 @@ class _AddStudentPageState extends State<AddStudentPage> {
                     border: const OutlineInputBorder(),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-                const Text("Course Fee"),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: feeController,
+
+                _buildTextField(
+                  "Course Fee",
+                  feeController,
+                  "Enter course fee",
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    hintText: "Enter course fee",
-                    border: OutlineInputBorder(),
-                  ),
-                  validator:
-                      (value) =>
-                          value == null || value.isEmpty ? 'Required' : null,
                 ),
-
                 const SizedBox(height: 20),
-                const Text("Amount Paid"),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: amountPaidController,
+
+                _buildTextField(
+                  "Amount Paid",
+                  amountPaidController,
+                  "Enter amount paid",
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    hintText: "Enter amount paid",
-                    border: OutlineInputBorder(),
-                  ),
-                  validator:
-                      (value) =>
-                          value == null || value.isEmpty ? 'Required' : null,
                 ),
-
                 const SizedBox(height: 20),
-                const Text("Phone Number"),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: phoneController,
+
+                _buildTextField(
+                  "Phone Number",
+                  phoneController,
+                  "+91 98765 43210",
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    hintText: "+91 98765 43210",
-                    border: OutlineInputBorder(),
-                  ),
-                  validator:
-                      (value) =>
-                          value == null || value.isEmpty ? 'Required' : null,
                 ),
-
                 const SizedBox(height: 20),
-                const Text("Email (Optional)"),
+
+                _buildTextField(
+                  "Email (Optional)",
+                  emailController,
+                  "student@example.com",
+                  required: false,
+                ),
+                const SizedBox(height: 20),
+
+                const Text("Assigned Status"),
                 const SizedBox(height: 6),
-                TextFormField(
-                  controller: emailController,
+                DropdownButtonFormField<String>(
+                  value: assignedLabel,
                   decoration: const InputDecoration(
-                    hintText: "student@example.com",
                     border: OutlineInputBorder(),
                   ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Unassigned',
+                      child: Text('Unassigned'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Assigned',
+                      child: Text('Assigned'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      assignedLabel = value!;
+                      isAssigned = value == 'Assigned';
+                    });
+                  },
                 ),
-
                 const SizedBox(height: 30),
+
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -400,6 +375,65 @@ class _AddStudentPageState extends State<AddStudentPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    String hintText, {
+    TextInputType keyboardType = TextInputType.text,
+    bool required = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            hintText: hintText,
+            border: const OutlineInputBorder(),
+          ),
+          validator:
+              required
+                  ? (value) =>
+                      value == null || value.isEmpty ? 'Required' : null
+                  : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown(
+    String label,
+    String? value,
+    List<String> items,
+    void Function(String?) onChanged, {
+    String? hint,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          hint: Text(hint ?? "Select $label"),
+          items:
+              items
+                  .map(
+                    (item) => DropdownMenuItem(value: item, child: Text(item)),
+                  )
+                  .toList(),
+          onChanged: items.isEmpty ? null : onChanged,
+          validator: validator,
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'dashboard.dart';
+import 'course_page.dart';
+import 'invoice_page.dart';
+import 'settings_page.dart';
+import 'student_tutor_page.dart'; // ✅ import the new student page
 
 class TutorPage extends StatefulWidget {
   const TutorPage({super.key});
@@ -10,6 +14,43 @@ class TutorPage extends StatefulWidget {
 }
 
 class _TutorPageState extends State<TutorPage> {
+  int _selectedIndex = 3; // Tutor page index
+
+  void _onNavItemTapped(int index) {
+    if (index == _selectedIndex) return;
+
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardPage()),
+      );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const CoursesPage()),
+      );
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const InvoicesPage()),
+      );
+    } else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const TutorPage()),
+      );
+    } else if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SettingsPage()),
+      );
+    }
+  }
+
   void _showAddTutorDialog() {
     String name = '';
     String email = '';
@@ -101,7 +142,7 @@ class _TutorPageState extends State<TutorPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "Course \${courseIndex + 1}",
+                                  "Course ${courseIndex + 1}",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -146,7 +187,6 @@ class _TutorPageState extends State<TutorPage> {
                                 ...course['batches'].asMap().entries.map((
                                   batchEntry,
                                 ) {
-                                  int batchIndex = batchEntry.key;
                                   var batch = batchEntry.value;
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -155,7 +195,6 @@ class _TutorPageState extends State<TutorPage> {
                                     child: Row(
                                       children: [
                                         Expanded(
-                                          flex: 2,
                                           child: TextFormField(
                                             decoration: const InputDecoration(
                                               labelText: "Name",
@@ -166,7 +205,6 @@ class _TutorPageState extends State<TutorPage> {
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          flex: 2,
                                           child: TextFormField(
                                             decoration: const InputDecoration(
                                               labelText: "Start",
@@ -177,7 +215,6 @@ class _TutorPageState extends State<TutorPage> {
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          flex: 2,
                                           child: TextFormField(
                                             decoration: const InputDecoration(
                                               labelText: "End",
@@ -242,7 +279,66 @@ class _TutorPageState extends State<TutorPage> {
     return Scaffold(
       appBar: AppBar(title: const Text("Tutors")),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Top toggle buttons (now used for routing)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFF1F1F1),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.black,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        "Tutors",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const StudentPage(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          "Students",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ElevatedButton.icon(
@@ -252,6 +348,7 @@ class _TutorPageState extends State<TutorPage> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
             ),
           ),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream:
@@ -271,6 +368,7 @@ class _TutorPageState extends State<TutorPage> {
                   itemBuilder: (context, index) {
                     final data = tutors[index].data() as Map<String, dynamic>;
                     final courses = data['courses'] as List<dynamic>? ?? [];
+
                     return Card(
                       margin: const EdgeInsets.all(8.0),
                       child: Padding(
@@ -291,7 +389,6 @@ class _TutorPageState extends State<TutorPage> {
                                       ),
                                     ),
                                     Text(data['email'] ?? ''),
-                                    const Text('Password: ••••••••'),
                                   ],
                                 ),
                                 Row(
@@ -346,6 +443,31 @@ class _TutorPageState extends State<TutorPage> {
                 );
               },
             ),
+          ),
+        ],
+      ),
+
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onNavItemTapped,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book),
+            label: 'Courses',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Invoices'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Reports',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),

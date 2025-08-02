@@ -32,10 +32,10 @@ class _AddTutorFormState extends State<AddTutorForm> {
   @override
   void initState() {
     super.initState();
-    _getInstituteIdAndCourses();
+    _fetchInstituteDetails();
   }
 
-  Future<void> _getInstituteIdAndCourses() async {
+  Future<void> _fetchInstituteDetails() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -48,20 +48,23 @@ class _AddTutorFormState extends State<AddTutorForm> {
               .get();
 
       if (userDetailsSnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("User details not found.")),
-        );
+        debugPrint("❌ user_details not found for uid: ${user.uid}");
         return;
       }
 
       final userDoc = userDetailsSnapshot.docs.first;
-      final id = userDoc.id; // Use document ID as instituteId
+      final id = userDoc.id;
 
       final instituteDoc =
           await FirebaseFirestore.instance
               .collection('institutes')
               .doc(id)
               .get();
+
+      if (!instituteDoc.exists) {
+        debugPrint("❌ Institute document with ID $id does not exist.");
+        return;
+      }
 
       setState(() {
         instituteId = id;
@@ -78,30 +81,34 @@ class _AddTutorFormState extends State<AddTutorForm> {
         availableCourses = courseSnapshot.docs;
       });
     } catch (e) {
-      debugPrint("Error fetching institute or courses: $e");
+      debugPrint("❌ Exception in _fetchInstituteDetails: $e");
     }
   }
 
   Future<void> _submitTutor() async {
-    if (instituteId == null || instituteData == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Institute data not loaded")),
-      );
-      return;
-    }
-
     try {
+      if (instituteId == null || instituteData == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Institute data not loaded")),
+        );
+        return;
+      }
+
+      final tutorData = {
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'institute_id': instituteId,
+        'institute': instituteData,
+        'assigned_course_ids': courses.map((c) => c['courseId']).toList(),
+        'created_at': FieldValue.serverTimestamp(),
+      };
+
+      debugPrint("📦 Adding tutor: $tutorData");
+
       final tutorRef = await FirebaseFirestore.instance
           .collection('tutors')
-          .add({
-            'name': name,
-            'email': email,
-            'phone': phone,
-            'institute_id': instituteId,
-            'institute': instituteData,
-            'assigned_course_ids': courses.map((c) => c['courseId']).toList(),
-            'created_at': FieldValue.serverTimestamp(),
-          });
+          .add(tutorData);
 
       for (var course in courses) {
         for (var batch in course['batches']) {
@@ -124,9 +131,13 @@ class _AddTutorFormState extends State<AddTutorForm> {
         }
       }
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Tutor added successfully")),
+      );
       widget.onClose();
-    } catch (e) {
-      debugPrint("Error adding tutor: $e");
+    } catch (e, stack) {
+      debugPrint("🔥 Error while submitting tutor: $e");
+      debugPrint("🧱 Stack Trace:\n$stack");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Failed to add tutor")));

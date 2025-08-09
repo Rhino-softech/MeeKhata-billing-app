@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'dart:typed_data';
 import 'dashboard.dart';
 import 'course_page.dart';
@@ -313,10 +312,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     final pdfData = await generateInvoicePdf(data);
-                    await Printing.sharePdf(
-                      bytes: pdfData,
-                      filename: 'invoice.pdf',
-                    );
+                    // TODO: Save or share the PDF using another package (like path_provider)
                   },
                   icon: const Icon(Icons.picture_as_pdf),
                   label: const Text('PDF'),
@@ -327,10 +323,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     final pdfData = await generateInvoicePdf(data);
-                    await Printing.sharePdf(
-                      bytes: pdfData,
-                      filename: 'invoice.pdf',
-                    );
+                    // TODO: Handle WhatsApp sharing with custom logic
                   },
                   icon: const Icon(Icons.chat, color: Colors.green),
                   label: const Text('WhatsApp'),

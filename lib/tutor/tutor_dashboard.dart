@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:billing_app/tutor/batch_tutor_page.dart';
 
 class AttendancePage extends StatelessWidget {
-  const AttendancePage({super.key});
+  final String loggedInUid; // ✅ UID passed from login page
 
-  Future<DocumentSnapshot?> _getTutorDocByEmail(String email) async {
-    // Step 1: Get user_details document based on email
-    final userQuery =
+  const AttendancePage({super.key, required this.loggedInUid});
+
+  Future<DocumentSnapshot?> _getTutorDocByUid(String uid) async {
+    // Step 1: Get user_details document based on UID
+    final userDoc =
         await FirebaseFirestore.instance
             .collection('user_details')
-            .where('email', isEqualTo: email)
-            .limit(1)
+            .doc(uid)
             .get();
 
-    if (userQuery.docs.isEmpty) return null;
+    if (!userDoc.exists) return null;
 
-    final userData = userQuery.docs.first.data();
+    final userData = userDoc.data();
+    if (userData == null || !userData.containsKey('email')) return null;
+
     final String userEmail = userData['email'];
 
     // Step 2: Now find matching tutor document by email
@@ -35,14 +37,8 @@ class AttendancePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    if (currentUser == null) {
-      return const Center(child: Text("User not logged in."));
-    }
-
     return FutureBuilder<DocumentSnapshot?>(
-      future: _getTutorDocByEmail(currentUser.email!),
+      future: _getTutorDocByUid(loggedInUid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

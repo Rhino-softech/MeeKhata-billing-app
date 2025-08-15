@@ -33,30 +33,35 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
       );
 
+      // 🔹 Get logged in UID
+      final String loggedInUid = credential.user!.uid;
+
       final userDoc =
-          await _firestore
-              .collection('user_details')
-              .doc(credential.user!.uid)
-              .get();
+          await _firestore.collection('user_details').doc(loggedInUid).get();
 
       if (userDoc.exists) {
         final Map<String, dynamic>? userData = userDoc.data();
-
-        final userName = userData?['name'] ?? '';
-        final email = userData?['email'];
         final role = userData?['role']?.toString().toLowerCase();
 
         if (role == 'institute') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => DashboardPage(userName: userName, email: email),
+              builder:
+                  (_) => DashboardPage(
+                    loggedInUid: loggedInUid, // ✅ Passing UID only
+                  ),
             ),
           );
         } else if (role == 'tutor') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const AttendancePage()),
+            MaterialPageRoute(
+              builder:
+                  (_) => AttendancePage(
+                    loggedInUid: loggedInUid, // ✅ Passing UID
+                  ),
+            ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -198,7 +203,6 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
-              // Demo Mode Card
               Container(
                 margin: const EdgeInsets.only(top: 10),
                 padding: const EdgeInsets.symmetric(

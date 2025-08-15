@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class StudentPage extends StatefulWidget {
-  const StudentPage({super.key});
+  final String loggedInUid;
+  const StudentPage({super.key, required this.loggedInUid});
 
   @override
   State<StudentPage> createState() => _StudentPageState();
@@ -142,7 +143,10 @@ class _StudentPageState extends State<StudentPage> {
                                 const SizedBox(width: 10),
                                 OutlinedButton.icon(
                                   onPressed: () {
-                                    // TODO: Implement view logic
+                                    // Example: Navigate with UID if needed
+                                    // Navigator.push(context, MaterialPageRoute(
+                                    //   builder: (_) => SomePage(loggedInUid: widget.loggedInUid)
+                                    // ));
                                   },
                                   icon: const Icon(Icons.remove_red_eye),
                                   label: const Text("View"),

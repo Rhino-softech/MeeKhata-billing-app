@@ -5,7 +5,9 @@ import 'invoice_page.dart';
 import 'tutor_page.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final String loggedInUid;
+
+  const SettingsPage({super.key, required this.loggedInUid});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -135,25 +137,34 @@ class _SettingsPageState extends State<SettingsPage> {
             case 0:
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const DashboardPage()),
+                MaterialPageRoute(
+                  builder:
+                      (_) => DashboardPage(loggedInUid: widget.loggedInUid),
+                ),
               );
               break;
             case 1:
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const CoursesPage()),
+                MaterialPageRoute(
+                  builder: (_) => CoursesPage(uid: widget.loggedInUid),
+                ),
               );
               break;
             case 2:
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const InvoicesPage()),
+                MaterialPageRoute(
+                  builder: (_) => InvoicesPage(loggedInUid: widget.loggedInUid),
+                ),
               );
               break;
             case 3:
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const TutorPage()),
+                MaterialPageRoute(
+                  builder: (_) => TutorPage(loggedInUid: widget.loggedInUid),
+                ),
               );
               break;
             case 4:

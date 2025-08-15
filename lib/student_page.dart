@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 import 'add_student_page.dart';
 
 class StudentPage extends StatefulWidget {
-  const StudentPage({super.key});
+  final String loggedInUid; // Added loggedInUid
+  const StudentPage({super.key, required this.loggedInUid}); // required
 
   @override
   State<StudentPage> createState() => _StudentPageState();
@@ -423,7 +424,12 @@ class _StudentPageState extends State<StudentPage> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const AddStudentPage()),
+            MaterialPageRoute(
+              builder:
+                  (_) => AddStudentPage(
+                    loggedInUid: widget.loggedInUid, // pass loggedInUid
+                  ),
+            ),
           );
         },
         backgroundColor: Colors.black,

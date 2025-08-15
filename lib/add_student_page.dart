@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AddStudentPage extends StatefulWidget {
-  const AddStudentPage({super.key});
+  final String loggedInUid; // ✅ Get UID from login page
+
+  const AddStudentPage({super.key, required this.loggedInUid});
 
   @override
   State<AddStudentPage> createState() => _AddStudentPageState();
@@ -113,8 +115,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
 
       for (var doc in batchDocs.docs) {
         final name = doc.data()['name'];
-        final time = doc.data()['time'];
-        if (name != null && time != null) {
+        if (name != null) {
           batchIdMap[name] = doc.id;
         }
       }
@@ -186,6 +187,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
           'email': emailController.text.trim(),
           'assigned': isAssigned,
           'enrollment_date': Timestamp.now(),
+          'created_by_uid': widget.loggedInUid, // ✅ Store UID
         },
       );
 

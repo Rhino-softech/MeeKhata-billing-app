@@ -11,8 +11,14 @@ import 'settings_page.dart';
 class DashboardPage extends StatefulWidget {
   final String? userName;
   final String? email;
+  final String loggedInUid; // ✅ Keep same key
 
-  const DashboardPage({super.key, this.userName, this.email});
+  const DashboardPage({
+    super.key,
+    this.userName,
+    this.email,
+    required this.loggedInUid,
+  });
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -39,6 +45,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
     FirebaseFirestore.instance
         .collection('student_enroll_details')
+        .where(
+          'owner_uid',
+          isEqualTo: widget.loggedInUid,
+        ) // ✅ Filter by loggedInUid
         .snapshots()
         .listen((snapshot) {
           final List<Map<String, dynamic>> txList = [];
@@ -90,27 +100,37 @@ class _DashboardPageState extends State<DashboardPage> {
 
   void onNavTap(int index) {
     if (index == 0) return;
-
     switch (index) {
       case 1:
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => CoursesPage()),
+          MaterialPageRoute(
+            builder: (_) => CoursesPage(uid: widget.loggedInUid),
+          ),
         );
         break;
       case 2:
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => InvoicesPage()),
+          MaterialPageRoute(
+            builder: (_) => InvoicesPage(loggedInUid: widget.loggedInUid),
+          ),
         );
         break;
       case 3:
-        Navigator.push(context, MaterialPageRoute(builder: (_) => TutorPage()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TutorPage(loggedInUid: widget.loggedInUid),
+          ),
+        );
         break;
       case 4:
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => SettingsPage()),
+          MaterialPageRoute(
+            builder: (_) => SettingsPage(loggedInUid: widget.loggedInUid),
+          ),
         );
         break;
     }
@@ -150,7 +170,9 @@ class _DashboardPageState extends State<DashboardPage> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const AddStudentPage()),
+            MaterialPageRoute(
+              builder: (_) => AddStudentPage(loggedInUid: widget.loggedInUid),
+            ),
           );
         },
         child: const Icon(Icons.add),
@@ -232,7 +254,10 @@ class _DashboardPageState extends State<DashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const AddStudentPage(),
+                          builder:
+                              (_) => AddStudentPage(
+                                loggedInUid: widget.loggedInUid,
+                              ),
                         ),
                       );
                     },

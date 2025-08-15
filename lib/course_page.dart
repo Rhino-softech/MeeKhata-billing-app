@@ -2,19 +2,17 @@ import 'package:billing_app/settings_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'add_course_modal.dart';
 import 'dashboard.dart';
-import 'student_details_page.dart';
 import 'invoice_page.dart';
 import 'batches_page.dart';
 import 'tutor_page.dart';
-import 'settings_page.dart';
 
 class CoursesPage extends StatefulWidget {
-  final String? userName;
-  final String? email;
+  final String uid;
 
-  const CoursesPage({super.key, this.userName, this.email});
+  const CoursesPage({super.key, required this.uid});
 
   @override
   State<CoursesPage> createState() => _CoursesPageState();
@@ -22,21 +20,29 @@ class CoursesPage extends StatefulWidget {
 
 class _CoursesPageState extends State<CoursesPage> {
   List<Map<String, dynamic>> courses = [];
-  int _selectedIndex = 1;
+  late String userUid;
 
   @override
   void initState() {
     super.initState();
+    userUid =
+        widget.uid.isNotEmpty
+            ? widget.uid
+            : FirebaseAuth.instance.currentUser?.uid ?? '';
     fetchCoursesData();
   }
 
   Future<void> fetchCoursesData() async {
     final courseSnap =
-        await FirebaseFirestore.instance.collection('course_details').get();
+        await FirebaseFirestore.instance
+            .collection('course_details')
+            .where('created_by', isEqualTo: userUid)
+            .get();
 
     final enrollSnap =
         await FirebaseFirestore.instance
             .collection('student_enroll_details')
+            .where('created_by', isEqualTo: userUid)
             .get();
 
     Map<String, Map<String, dynamic>> stats = {};
@@ -67,7 +73,6 @@ class _CoursesPageState extends State<CoursesPage> {
       final count = data['count'] ?? 0;
 
       stats[name] ??= {'totalFee': 0.0, 'collected': 0.0, 'students': 0};
-
       stats[name]!['batches'] = count;
     }
 
@@ -87,42 +92,6 @@ class _CoursesPageState extends State<CoursesPage> {
     setState(() {
       courses = result;
     });
-  }
-
-  void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
-
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    Widget? targetPage;
-    switch (index) {
-      case 0:
-        targetPage = DashboardPage(
-          userName: widget.userName,
-          email: widget.email,
-        );
-        break;
-      case 1:
-        return;
-      case 2:
-        targetPage = InvoicesPage();
-        break;
-      case 3:
-        targetPage = TutorPage();
-        break;
-      case 4:
-        targetPage = SettingsPage();
-        break;
-      default:
-        return;
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => targetPage!),
-    );
   }
 
   void _openAddCourseDialog() {
@@ -185,7 +154,6 @@ class _CoursesPageState extends State<CoursesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        /// Title + Tags
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -224,8 +192,6 @@ class _CoursesPageState extends State<CoursesPage> {
                           ],
                         ),
                         const SizedBox(height: 12),
-
-                        /// Fees row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -274,8 +240,6 @@ class _CoursesPageState extends State<CoursesPage> {
                           ],
                         ),
                         const SizedBox(height: 8),
-
-                        /// Progress bar
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
@@ -286,8 +250,6 @@ class _CoursesPageState extends State<CoursesPage> {
                           ),
                         ),
                         const SizedBox(height: 10),
-
-                        /// View Batches Button
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
@@ -328,8 +290,43 @@ class _CoursesPageState extends State<CoursesPage> {
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        currentIndex: 1,
+        onTap: (index) {
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DashboardPage(loggedInUid: userUid),
+              ),
+            );
+          } else if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => CoursesPage(uid: userUid)),
+            );
+          } else if (index == 2) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => InvoicesPage(loggedInUid: userUid),
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TutorPage(loggedInUid: userUid),
+              ),
+            );
+          } else if (index == 4) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SettingsPage(loggedInUid: userUid),
+              ),
+            );
+          }
+        },
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,

@@ -8,7 +8,9 @@ import 'tutor_page.dart';
 import 'settings_page.dart';
 
 class InvoicesPage extends StatefulWidget {
-  const InvoicesPage({super.key});
+  final String loggedInUid;
+
+  const InvoicesPage({super.key, required this.loggedInUid});
 
   @override
   State<InvoicesPage> createState() => _InvoicesPageState();
@@ -199,27 +201,37 @@ class _InvoicesPageState extends State<InvoicesPage> {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const DashboardPage()),
+              MaterialPageRoute(
+                builder: (_) => DashboardPage(loggedInUid: widget.loggedInUid),
+              ),
             );
           } else if (index == 1) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const CoursesPage()),
+              MaterialPageRoute(
+                builder: (_) => CoursesPage(uid: widget.loggedInUid),
+              ),
             );
           } else if (index == 2) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const InvoicesPage()),
+              MaterialPageRoute(
+                builder: (_) => InvoicesPage(loggedInUid: widget.loggedInUid),
+              ),
             );
           } else if (index == 3) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const TutorPage()),
+              MaterialPageRoute(
+                builder: (_) => TutorPage(loggedInUid: widget.loggedInUid),
+              ),
             );
           } else if (index == 4) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const SettingsPage()),
+              MaterialPageRoute(
+                builder: (_) => SettingsPage(loggedInUid: widget.loggedInUid),
+              ),
             );
           }
         },

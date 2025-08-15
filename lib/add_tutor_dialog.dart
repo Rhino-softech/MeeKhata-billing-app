@@ -1,10 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class AddTutorForm extends StatefulWidget {
   final VoidCallback onClose;
-  const AddTutorForm({super.key, required this.onClose});
+  final String loggedInUid; // <- UID passed from Dashboard
+  const AddTutorForm({
+    super.key,
+    required this.onClose,
+    required this.loggedInUid,
+  });
 
   @override
   State<AddTutorForm> createState() => _AddTutorFormState();
@@ -32,23 +36,29 @@ class _AddTutorFormState extends State<AddTutorForm> {
   @override
   void initState() {
     super.initState();
+    debugPrint("🆔 Logged-in UID at init: ${widget.loggedInUid}");
     _fetchInstituteDetails();
   }
 
   Future<void> _fetchInstituteDetails() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final userUid = widget.loggedInUid;
+      debugPrint("🆔 Logged-in UID in _fetchInstituteDetails: $userUid");
+
+      if (userUid.isEmpty) {
+        debugPrint("❌ UID is empty, cannot fetch institute details");
+        return;
+      }
 
       final userDetailsSnapshot =
           await FirebaseFirestore.instance
               .collection('user_details')
-              .where('reference_id', isEqualTo: user.uid)
+              .where('reference_id', isEqualTo: userUid)
               .limit(1)
               .get();
 
       if (userDetailsSnapshot.docs.isEmpty) {
-        debugPrint("❌ user_details not found for uid: ${user.uid}");
+        debugPrint("❌ user_details not found for uid: $userUid");
         return;
       }
 
@@ -87,10 +97,20 @@ class _AddTutorFormState extends State<AddTutorForm> {
 
   Future<void> _submitTutor() async {
     try {
+      final userUid = widget.loggedInUid;
+      debugPrint("🆔 Logged-in UID in _submitTutor: $userUid");
+
       if (instituteId == null || instituteData == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Institute data not loaded")),
         );
+        return;
+      }
+
+      if (userUid.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("User UID is missing")));
         return;
       }
 
@@ -102,6 +122,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
         'institute': instituteData,
         'assigned_course_ids': courses.map((c) => c['courseId']).toList(),
         'created_at': FieldValue.serverTimestamp(),
+        'added_by_uid': userUid, // <- Store the logged-in UID
       };
 
       debugPrint("📦 Adding tutor: $tutorData");
@@ -109,6 +130,8 @@ class _AddTutorFormState extends State<AddTutorForm> {
       final tutorRef = await FirebaseFirestore.instance
           .collection('tutors')
           .add(tutorData);
+
+      debugPrint("✅ Tutor added with ID: ${tutorRef.id}");
 
       for (var course in courses) {
         for (var batch in course['batches']) {

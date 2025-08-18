@@ -22,13 +22,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
   Map<String, dynamic>? instituteData;
 
   List<Map<String, dynamic>> courses = [
-    {
-      'courseId': null,
-      'type': 'normal',
-      'batches': [
-        {'name': '', 'start': '', 'end': ''},
-      ],
-    },
+    {'courseId': null, 'type': 'normal', 'batches': []},
   ];
 
   List<DocumentSnapshot> availableCourses = [];
@@ -43,12 +37,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
   Future<void> _fetchInstituteDetails() async {
     try {
       final userUid = widget.loggedInUid;
-      debugPrint("🆔 Logged-in UID in _fetchInstituteDetails: $userUid");
-
-      if (userUid.isEmpty) {
-        debugPrint("❌ UID is empty, cannot fetch institute details");
-        return;
-      }
+      if (userUid.isEmpty) return;
 
       final userDetailsSnapshot =
           await FirebaseFirestore.instance
@@ -57,11 +46,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
               .limit(1)
               .get();
 
-      if (userDetailsSnapshot.docs.isEmpty) {
-        debugPrint("❌ user_details not found for uid: $userUid");
-        return;
-      }
-
+      if (userDetailsSnapshot.docs.isEmpty) return;
       final userDoc = userDetailsSnapshot.docs.first;
       final id = userDoc.id;
 
@@ -71,22 +56,22 @@ class _AddTutorFormState extends State<AddTutorForm> {
               .doc(id)
               .get();
 
-      if (!instituteDoc.exists) {
-        debugPrint("❌ Institute document with ID $id does not exist.");
-        return;
-      }
+      if (!instituteDoc.exists) return;
 
+      if (!mounted) return;
       setState(() {
         instituteId = id;
         instituteData = instituteDoc.data();
       });
 
+      /// fetch courses for this institute
       final courseSnapshot =
           await FirebaseFirestore.instance
               .collection('courses')
               .where('institute_id', isEqualTo: id)
               .get();
 
+      if (!mounted) return;
       setState(() {
         availableCourses = courseSnapshot.docs;
       });
@@ -95,12 +80,77 @@ class _AddTutorFormState extends State<AddTutorForm> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _fetchBatchesForCourse(
+    String courseId,
+  ) async {
+    final batchSnapshot =
+        await FirebaseFirestore.instance
+            .collection('batches')
+            .where('course_id', isEqualTo: courseId)
+            .get();
+
+    return batchSnapshot.docs
+        .map((b) => {'batchId': b.id, 'name': b['name'] ?? ''})
+        .toList();
+  }
+
+  Future<void> _addBatchDialog(int courseIndex, String courseId) async {
+    final TextEditingController batchNameController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("Add Batch"),
+          content: TextField(
+            controller: batchNameController,
+            decoration: const InputDecoration(labelText: "Batch Name"),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final batchName = batchNameController.text.trim();
+                if (batchName.isEmpty || instituteId == null) return;
+
+                final newBatchRef =
+                    FirebaseFirestore.instance.collection('batches').doc();
+                await newBatchRef.set({
+                  'name': batchName,
+                  'course_id': courseId,
+                  'institute_id': instituteId,
+                  'created_at': FieldValue.serverTimestamp(),
+                });
+
+                final createdBatch = await newBatchRef.get();
+
+                if (!mounted) return;
+                setState(() {
+                  courses[courseIndex]['batches'].add({
+                    'batchId': createdBatch.id,
+                    'name': batchName,
+                  });
+                });
+
+                Navigator.pop(ctx);
+              },
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _submitTutor() async {
     try {
       final userUid = widget.loggedInUid;
-      debugPrint("🆔 Logged-in UID in _submitTutor: $userUid");
 
       if (instituteId == null || instituteData == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Institute data not loaded")),
         );
@@ -108,6 +158,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
       }
 
       if (userUid.isEmpty) {
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("User UID is missing")));
@@ -122,28 +173,21 @@ class _AddTutorFormState extends State<AddTutorForm> {
         'institute': instituteData,
         'assigned_course_ids': courses.map((c) => c['courseId']).toList(),
         'created_at': FieldValue.serverTimestamp(),
-        'added_by_uid': userUid, // <- Store the logged-in UID
+        'added_by_uid': userUid,
       };
-
-      debugPrint("📦 Adding tutor: $tutorData");
 
       final tutorRef = await FirebaseFirestore.instance
           .collection('tutors')
           .add(tutorData);
 
-      debugPrint("✅ Tutor added with ID: ${tutorRef.id}");
-
       for (var course in courses) {
         for (var batch in course['batches']) {
-          await FirebaseFirestore.instance.collection('batches').add({
-            'name': batch['name'],
-            'start_date': batch['start'],
-            'end_date': batch['end'],
-            'tutor_id': tutorRef.id,
-            'course_id': course['courseId'],
-            'institute_id': instituteId,
-            'created_at': FieldValue.serverTimestamp(),
-          });
+          if (batch['batchId'] != null) {
+            await FirebaseFirestore.instance
+                .collection('batches')
+                .doc(batch['batchId'])
+                .update({'tutor_id': tutorRef.id});
+          }
         }
 
         if (course['courseId'] != null) {
@@ -154,6 +198,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
         }
       }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Tutor added successfully")),
       );
@@ -161,6 +206,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
     } catch (e, stack) {
       debugPrint("🔥 Error while submitting tutor: $e");
       debugPrint("🧱 Stack Trace:\n$stack");
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Failed to add tutor")));
@@ -174,6 +220,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
       body: SafeArea(
         child: Column(
           children: [
+            /// Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -190,11 +237,13 @@ class _AddTutorFormState extends State<AddTutorForm> {
                 ),
               ],
             ),
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
+                    /// Basic details
                     TextFormField(
                       decoration: const InputDecoration(labelText: "Name"),
                       onChanged: (val) => name = val,
@@ -207,7 +256,10 @@ class _AddTutorFormState extends State<AddTutorForm> {
                       decoration: const InputDecoration(labelText: "Phone"),
                       onChanged: (val) => phone = val,
                     ),
+
                     const SizedBox(height: 20),
+
+                    /// Courses
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -217,13 +269,12 @@ class _AddTutorFormState extends State<AddTutorForm> {
                         ),
                         ElevatedButton.icon(
                           onPressed: () {
+                            if (!mounted) return;
                             setState(() {
                               courses.add({
                                 'courseId': null,
                                 'type': 'normal',
-                                'batches': [
-                                  {'name': '', 'start': '', 'end': ''},
-                                ],
+                                'batches': [],
                               });
                             });
                           },
@@ -235,10 +286,14 @@ class _AddTutorFormState extends State<AddTutorForm> {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 10),
+
+                    /// Course + Batch Cards
                     ...courses.asMap().entries.map((entry) {
                       int courseIndex = entry.key;
                       var course = entry.value;
+
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 10),
                         child: Padding(
@@ -247,6 +302,8 @@ class _AddTutorFormState extends State<AddTutorForm> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text("Course ${courseIndex + 1}"),
+
+                              /// Course dropdown
                               DropdownButtonFormField<String>(
                                 decoration: const InputDecoration(
                                   labelText: 'Course',
@@ -259,12 +316,26 @@ class _AddTutorFormState extends State<AddTutorForm> {
                                         child: Text(doc['name']),
                                       );
                                     }).toList(),
-                                onChanged: (val) {
+                                onChanged: (val) async {
+                                  if (!mounted) return;
                                   setState(() {
                                     course['courseId'] = val;
+                                    course['batches'] = [];
                                   });
+
+                                  if (val != null) {
+                                    final batches =
+                                        await _fetchBatchesForCourse(val);
+
+                                    if (!mounted) return;
+                                    setState(() {
+                                      course['batches'] = batches;
+                                    });
+                                  }
                                 },
                               ),
+
+                              /// Type dropdown
                               DropdownButtonFormField<String>(
                                 decoration: const InputDecoration(
                                   labelText: 'Type',
@@ -281,84 +352,55 @@ class _AddTutorFormState extends State<AddTutorForm> {
                                   ),
                                 ],
                                 onChanged: (val) {
+                                  if (!mounted) return;
                                   setState(() {
                                     course['type'] = val!;
                                   });
                                 },
                               ),
+
                               const SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+
+                              /// Batches
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text("Batches"),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        course['batches'].add({
-                                          'name': '',
-                                          'start': '',
-                                          'end': '',
-                                        });
-                                      });
-                                    },
+                                  ...course['batches'].map<Widget>((batch) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 6.0,
+                                      ),
+                                      child: Text(
+                                        "Batch: ${batch['name']}",
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  TextButton.icon(
+                                    onPressed:
+                                        course['courseId'] == null
+                                            ? null
+                                            : () => _addBatchDialog(
+                                              courseIndex,
+                                              course['courseId'],
+                                            ),
                                     icon: const Icon(Icons.add),
                                     label: const Text("Add Batch"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.black,
-                                    ),
                                   ),
                                 ],
                               ),
-                              ...course['batches'].asMap().entries.map((
-                                batchEntry,
-                              ) {
-                                var batch = batchEntry.value;
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          decoration: const InputDecoration(
-                                            labelText: "Name",
-                                          ),
-                                          onChanged:
-                                              (val) => batch['name'] = val,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: TextFormField(
-                                          decoration: const InputDecoration(
-                                            labelText: "Start",
-                                          ),
-                                          onChanged:
-                                              (val) => batch['start'] = val,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: TextFormField(
-                                          decoration: const InputDecoration(
-                                            labelText: "End",
-                                          ),
-                                          onChanged:
-                                              (val) => batch['end'] = val,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
                             ],
                           ),
                         ),
                       );
                     }),
+
                     const SizedBox(height: 20),
+
+                    /// Footer buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [

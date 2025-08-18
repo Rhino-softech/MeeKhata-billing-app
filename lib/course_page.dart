@@ -21,6 +21,7 @@ class CoursesPage extends StatefulWidget {
 class _CoursesPageState extends State<CoursesPage> {
   List<Map<String, dynamic>> courses = [];
   late String userUid;
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -33,10 +34,15 @@ class _CoursesPageState extends State<CoursesPage> {
   }
 
   Future<void> fetchCoursesData() async {
+    setState(() => isLoading = true);
+
     final courseSnap =
         await FirebaseFirestore.instance
-            .collection('course_details')
-            .where('created_by', isEqualTo: userUid)
+            .collection('courses') // ✅ fixed
+            .where(
+              'institute_id',
+              isEqualTo: userUid,
+            ) // ✅ adjust to match Firestore
             .get();
 
     final enrollSnap =
@@ -47,6 +53,7 @@ class _CoursesPageState extends State<CoursesPage> {
 
     Map<String, Map<String, dynamic>> stats = {};
 
+    // Collect enrollment data
     for (var doc in enrollSnap.docs) {
       final data = doc.data();
       final courseName = data['course_name'];
@@ -67,12 +74,18 @@ class _CoursesPageState extends State<CoursesPage> {
       stats[courseName]!['students'] += 1;
     }
 
+    // Collect course data
     for (var doc in courseSnap.docs) {
       final data = doc.data();
       final name = data['name'] ?? 'Unknown';
       final count = data['count'] ?? 0;
 
-      stats[name] ??= {'totalFee': 0.0, 'collected': 0.0, 'students': 0};
+      stats[name] ??= {
+        'totalFee': 0.0,
+        'collected': 0.0,
+        'students': 0,
+        'batches': 0,
+      };
       stats[name]!['batches'] = count;
     }
 
@@ -91,6 +104,7 @@ class _CoursesPageState extends State<CoursesPage> {
 
     setState(() {
       courses = result;
+      isLoading = false;
     });
   }
 
@@ -121,8 +135,15 @@ class _CoursesPageState extends State<CoursesPage> {
         leading: IconButton(onPressed: () {}, icon: const Icon(Icons.menu)),
       ),
       body:
-          courses.isEmpty
+          isLoading
               ? const Center(child: CircularProgressIndicator())
+              : courses.isEmpty
+              ? const Center(
+                child: Text(
+                  "No courses found",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              )
               : ListView.builder(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -154,6 +175,7 @@ class _CoursesPageState extends State<CoursesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Header Row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -192,6 +214,8 @@ class _CoursesPageState extends State<CoursesPage> {
                           ],
                         ),
                         const SizedBox(height: 12),
+
+                        // Fee Info
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -240,6 +264,8 @@ class _CoursesPageState extends State<CoursesPage> {
                           ],
                         ),
                         const SizedBox(height: 8),
+
+                        // Progress bar
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
@@ -250,6 +276,8 @@ class _CoursesPageState extends State<CoursesPage> {
                           ),
                         ),
                         const SizedBox(height: 10),
+
+                        // View Batches
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(

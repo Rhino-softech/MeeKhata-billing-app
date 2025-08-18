@@ -193,7 +193,7 @@ class _BatchesPageState extends State<BatchesPage> {
           ),
           const SizedBox(height: 6),
 
-          /// Tutor
+          /// Tutor + Students Tag
           Row(
             children: [
               const Icon(Icons.person, size: 16),

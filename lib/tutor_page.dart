@@ -74,6 +74,80 @@ class _TutorPageState extends State<TutorPage> {
     );
   }
 
+  void _showEditTutorForm(String tutorId, Map<String, dynamic> data) {
+    final nameController = TextEditingController(text: data['name'] ?? '');
+    final emailController = TextEditingController(text: data['email'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Edit Tutor"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Name"),
+              ),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: "Email"),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await FirebaseFirestore.instance
+                    .collection('tutors')
+                    .doc(tutorId)
+                    .update({
+                      'name': nameController.text,
+                      'email': emailController.text,
+                    });
+                Navigator.pop(context);
+              },
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteTutor(String tutorId) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Delete Tutor"),
+            content: const Text("Are you sure you want to delete this tutor?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await FirebaseFirestore.instance
+                      .collection('tutors')
+                      .doc(tutorId)
+                      .delete();
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text("Delete"),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -81,6 +155,7 @@ class _TutorPageState extends State<TutorPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ✅ Tabs Tutors / Students
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Container(
@@ -140,15 +215,19 @@ class _TutorPageState extends State<TutorPage> {
               ),
             ),
           ),
+
+          // ✅ Add Tutor Button
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ElevatedButton.icon(
-              onPressed: _showAddTutorForm, // ✅ open AddTutorForm
+              onPressed: _showAddTutorForm,
               icon: const Icon(Icons.add),
               label: const Text("Add Tutor"),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
             ),
           ),
+
+          // ✅ Tutor List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream:
@@ -164,7 +243,8 @@ class _TutorPageState extends State<TutorPage> {
                 return ListView.builder(
                   itemCount: tutors.length,
                   itemBuilder: (context, index) {
-                    final data = tutors[index].data() as Map<String, dynamic>;
+                    final doc = tutors[index];
+                    final data = doc.data() as Map<String, dynamic>;
                     final courses = data['courses'] as List<dynamic>? ?? [];
                     return Card(
                       margin: const EdgeInsets.all(8.0),
@@ -173,6 +253,7 @@ class _TutorPageState extends State<TutorPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // ✅ Tutor Header with Actions
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -192,25 +273,40 @@ class _TutorPageState extends State<TutorPage> {
                                   children: [
                                     IconButton(
                                       icon: const Icon(Icons.group),
-                                      onPressed: () {},
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (_) => StudentPage(
+                                                  loggedInUid:
+                                                      widget.loggedInUid,
+                                                ),
+                                          ),
+                                        );
+                                      },
                                       tooltip: 'View Students',
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.edit),
-                                      onPressed: () {},
+                                      onPressed:
+                                          () =>
+                                              _showEditTutorForm(doc.id, data),
                                     ),
                                     IconButton(
                                       icon: const Icon(
                                         Icons.delete,
                                         color: Colors.red,
                                       ),
-                                      onPressed: () {},
+                                      onPressed: () => _deleteTutor(doc.id),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                             const SizedBox(height: 10),
+
+                            // ✅ Chips
                             Row(
                               children: [
                                 Chip(
@@ -223,6 +319,8 @@ class _TutorPageState extends State<TutorPage> {
                               ],
                             ),
                             const SizedBox(height: 10),
+
+                            // ✅ Courses List
                             const Text(
                               "Courses:",
                               style: TextStyle(fontWeight: FontWeight.bold),
@@ -243,6 +341,8 @@ class _TutorPageState extends State<TutorPage> {
           ),
         ],
       ),
+
+      // ✅ Bottom Nav
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onNavItemTapped,

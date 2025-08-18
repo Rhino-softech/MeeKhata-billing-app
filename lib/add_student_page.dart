@@ -39,10 +39,11 @@ class _AddStudentPageState extends State<AddStudentPage> {
     fetchCourses();
   }
 
+  /// 🔹 Fetch courses from `courses` collection
   void fetchCourses() async {
     try {
       final snapshot =
-          await FirebaseFirestore.instance.collection('course_details').get();
+          await FirebaseFirestore.instance.collection('courses').get();
       final courseNames = <String>[];
       final courseIds = <String, String>{};
 
@@ -67,6 +68,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
     }
   }
 
+  /// 🔹 Fetch batches from `batches` collection using `course_id`
   void fetchBatches(String? courseName) async {
     if (courseName == null || courseName.isEmpty) return;
 
@@ -83,45 +85,27 @@ class _AddStudentPageState extends State<AddStudentPage> {
       final courseId = courseIdMap[courseName];
       if (courseId == null) return;
 
-      final docSnapshot =
-          await FirebaseFirestore.instance
-              .collection('course_details')
-              .doc(courseId)
-              .get();
-
-      final data = docSnapshot.data();
-      if (data == null || !data.containsKey('batches')) return;
-
-      final batchArray = data['batches'];
-      if (batchArray is List) {
-        final batchNames =
-            batchArray
-                .where((b) => b['name'] != null)
-                .map((b) => b['name'].toString())
-                .toList();
-
-        if (!mounted) return;
-        setState(() {
-          batches = batchNames;
-        });
-      }
-
       final batchDocs =
           await FirebaseFirestore.instance
-              .collection('course_details')
-              .doc(courseId)
               .collection('batches')
+              .where('course_id', isEqualTo: courseId)
               .get();
 
+      final batchNames = <String>[];
+      final batchIds = <String, String>{};
+
       for (var doc in batchDocs.docs) {
-        final name = doc.data()['name'];
-        if (name != null) {
-          batchIdMap[name] = doc.id;
+        final name = doc.data()['name']?.toString();
+        if (name != null && name.isNotEmpty) {
+          batchNames.add(name);
+          batchIds[name] = doc.id;
         }
       }
 
       if (!mounted) return;
       setState(() {
+        batches = batchNames;
+        batchIdMap = batchIds;
         isFetchingBatches = false;
       });
     } catch (e) {
@@ -133,19 +117,16 @@ class _AddStudentPageState extends State<AddStudentPage> {
     }
   }
 
+  /// 🔹 Fetch time slot for a selected batch
   void fetchTimeSlot(String? batchName) async {
     if (selectedCourse == null || batchName == null) return;
 
-    final courseId = courseIdMap[selectedCourse!];
     final batchDocId = batchIdMap[batchName];
-
-    if (courseId == null || batchDocId == null) return;
+    if (batchDocId == null) return;
 
     try {
       final slotDoc =
           await FirebaseFirestore.instance
-              .collection('course_details')
-              .doc(courseId)
               .collection('batches')
               .doc(batchDocId)
               .get();
@@ -168,6 +149,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
     }
   }
 
+  /// 🔹 Add new student (no tutor_id for now)
   void addStudent() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -188,6 +170,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
           'assigned': isAssigned,
           'enrollment_date': Timestamp.now(),
           'created_by_uid': widget.loggedInUid, // ✅ Store UID
+          // tutor_id NOT stored now, will be updated later
         },
       );
 

@@ -63,12 +63,17 @@ class _TutorPageState extends State<TutorPage> {
     showDialog(
       context: context,
       builder: (context) {
-        return AddTutorForm(
-          loggedInUid: widget.loggedInUid, // ✅ pass the UID
-          onClose: () {
-            Navigator.pop(context); // Close the dialog
-            setState(() {}); // Refresh TutorPage after adding
-          },
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: AddTutorForm(
+            loggedInUid: widget.loggedInUid, // ✅ pass the UID
+            onClose: () {
+              Navigator.pop(context); // Close the dialog
+              setState(() {}); // Refresh TutorPage after adding
+            },
+          ),
         );
       },
     );
@@ -233,19 +238,27 @@ class _TutorPageState extends State<TutorPage> {
               stream:
                   FirebaseFirestore.instance
                       .collection('tutors')
-                      .orderBy('timestamp', descending: true)
+                      .orderBy(
+                        'created_at',
+                        descending: true,
+                      ) // ✅ FIXED (matches Firestore)
                       .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final tutors = snapshot.data!.docs;
+                if (tutors.isEmpty) {
+                  return const Center(child: Text("No tutors added yet."));
+                }
                 return ListView.builder(
                   itemCount: tutors.length,
                   itemBuilder: (context, index) {
                     final doc = tutors[index];
                     final data = doc.data() as Map<String, dynamic>;
-                    final courses = data['courses'] as List<dynamic>? ?? [];
+                    final courses =
+                        data['assigned_course_ids'] as List<dynamic>? ??
+                        []; // ✅ FIXED
                     return Card(
                       margin: const EdgeInsets.all(8.0),
                       child: Padding(
@@ -311,7 +324,7 @@ class _TutorPageState extends State<TutorPage> {
                               children: [
                                 Chip(
                                   label: Text(
-                                    "${data['students'] ?? 0} Students",
+                                    "${(data['students'] ?? 0)} Students",
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -320,16 +333,12 @@ class _TutorPageState extends State<TutorPage> {
                             ),
                             const SizedBox(height: 10),
 
-                            // ✅ Courses List
+                            // ✅ Courses List (IDs only for now)
                             const Text(
                               "Courses:",
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            ...courses.map(
-                              (c) => Text(
-                                "• ${c['courseName']} (${(c['batches'] as List?)?.length ?? 0} batch)",
-                              ),
-                            ),
+                            ...courses.map((c) => Text("• Course ID: $c")),
                           ],
                         ),
                       ),

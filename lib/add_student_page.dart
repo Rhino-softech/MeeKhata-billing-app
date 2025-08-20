@@ -39,6 +39,17 @@ class _AddStudentPageState extends State<AddStudentPage> {
     fetchCourses();
   }
 
+  /// ✅ Clean up controllers to prevent memory leaks
+  @override
+  void dispose() {
+    nameController.dispose();
+    feeController.dispose();
+    amountPaidController.dispose();
+    phoneController.dispose();
+    emailController.dispose();
+    super.dispose();
+  }
+
   /// 🔹 Fetch courses from `courses` collection
   void fetchCourses() async {
     try {
@@ -170,7 +181,6 @@ class _AddStudentPageState extends State<AddStudentPage> {
           'assigned': isAssigned,
           'enrollment_date': Timestamp.now(),
           'created_by_uid': widget.loggedInUid, // ✅ Store UID
-          // tutor_id NOT stored now, will be updated later
         },
       );
 
@@ -179,7 +189,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
         const SnackBar(content: Text('Student added successfully!')),
       );
 
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

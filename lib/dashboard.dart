@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 
 import 'add_student_page.dart';
 import 'course_page.dart';
@@ -11,7 +12,7 @@ import 'settings_page.dart';
 class DashboardPage extends StatefulWidget {
   final String? userName;
   final String? email;
-  final String loggedInUid; // ✅ Keep same key
+  final String loggedInUid;
 
   const DashboardPage({
     super.key,
@@ -32,6 +33,8 @@ class _DashboardPageState extends State<DashboardPage> {
   double totalDue = 0;
   int completedCount = 0;
 
+  StreamSubscription<QuerySnapshot>? _subscription;
+
   @override
   void initState() {
     super.initState();
@@ -43,12 +46,9 @@ class _DashboardPageState extends State<DashboardPage> {
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    FirebaseFirestore.instance
+    _subscription = FirebaseFirestore.instance
         .collection('student_enroll_details')
-        .where(
-          'created_by_uid',
-          isEqualTo: widget.loggedInUid,
-        ) // ✅ Filter by loggedInUid
+        .where('created_by_uid', isEqualTo: widget.loggedInUid)
         .snapshots()
         .listen((snapshot) {
           final List<Map<String, dynamic>> txList = [];
@@ -57,7 +57,7 @@ class _DashboardPageState extends State<DashboardPage> {
           int completed = 0;
 
           for (var doc in snapshot.docs) {
-            final data = doc.data();
+            final data = doc.data() as Map<String, dynamic>;
 
             final String name = data['name'] ?? 'Unknown';
             final String course = data['course_name'] ?? '';
@@ -89,6 +89,7 @@ class _DashboardPageState extends State<DashboardPage> {
             });
           }
 
+          if (!mounted) return; // ✅ safeguard
           setState(() {
             allTransactions = txList;
             todayPayment = todayPay;
@@ -98,8 +99,16 @@ class _DashboardPageState extends State<DashboardPage> {
         });
   }
 
+  @override
+  void dispose() {
+    _subscription?.cancel(); // ✅ stop listening when widget is disposed
+    super.dispose();
+  }
+
   void onNavTap(int index) {
     if (index == 0) return;
+    if (!mounted) return; // ✅ avoid navigation after dispose
+
     switch (index) {
       case 1:
         Navigator.pushReplacement(
@@ -168,6 +177,7 @@ class _DashboardPageState extends State<DashboardPage> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.blue,
         onPressed: () {
+          if (!mounted) return; // ✅ safeguard
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -251,6 +261,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
+                      if (!mounted) return; // ✅ safeguard
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -348,7 +359,10 @@ class _DashboardPageState extends State<DashboardPage> {
     return ChoiceChip(
       label: Text('$label ($count)'),
       selected: isSelected,
-      onSelected: (_) => setState(() => selectedTabIndex = index),
+      onSelected: (_) {
+        if (!mounted) return; // ✅ safeguard
+        setState(() => selectedTabIndex = index);
+      },
       selectedColor: Colors.black,
       labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
     );

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class StudentPage extends StatefulWidget {
   final String loggedInUid;
@@ -104,9 +105,9 @@ class _StudentPageState extends State<StudentPage> {
                                     ],
                                   ),
                                 ),
-                                if (data['course'] != null)
+                                if (data['course_name'] != null)
                                   Chip(
-                                    label: Text(data['course']),
+                                    label: Text(data['course_name']),
                                     backgroundColor: Colors.green[100],
                                   ),
                               ],
@@ -115,38 +116,51 @@ class _StudentPageState extends State<StudentPage> {
                             // Buttons
                             Row(
                               children: [
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    try {
-                                      await FirebaseFirestore.instance
-                                          .collection('student_enroll_details')
-                                          .doc(studentDoc.id)
-                                          .update({'assigned': true});
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Failed to assign student: $e',
+                                // ✅ Show "Assign" button only if student is NOT assigned
+                                if (!showAssigned)
+                                  ElevatedButton.icon(
+                                    onPressed: () async {
+                                      try {
+                                        await FirebaseFirestore.instance
+                                            .collection(
+                                              'student_enroll_details',
+                                            )
+                                            .doc(studentDoc.id)
+                                            .update({'assigned': true});
+                                        if (!mounted) return;
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Failed to assign student: $e',
+                                            ),
                                           ),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  icon: const Icon(Icons.add),
-                                  label: const Text("Assign"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
+                                        );
+                                      }
+                                    },
+                                    icon: const Icon(Icons.add),
+                                    label: const Text("Assign"),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
+                                if (!showAssigned) const SizedBox(width: 10),
                                 OutlinedButton.icon(
                                   onPressed: () {
-                                    // Example: Navigate with UID if needed
-                                    // Navigator.push(context, MaterialPageRoute(
-                                    //   builder: (_) => SomePage(loggedInUid: widget.loggedInUid)
-                                    // ));
+                                    if (!context.mounted) return;
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) => StudentDetailPage(
+                                              studentId: studentDoc.id,
+                                              studentData: data,
+                                            ),
+                                      ),
+                                    );
                                   },
                                   icon: const Icon(Icons.remove_red_eye),
                                   label: const Text("View"),
@@ -172,6 +186,7 @@ class _StudentPageState extends State<StudentPage> {
     return Expanded(
       child: GestureDetector(
         onTap: () {
+          if (!mounted) return;
           setState(() {
             showAssigned = label == "Assigned";
           });
@@ -190,6 +205,164 @@ class _StudentPageState extends State<StudentPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ✅ New Page for Student Details
+class StudentDetailPage extends StatelessWidget {
+  final String studentId;
+  final Map<String, dynamic> studentData;
+
+  const StudentDetailPage({
+    super.key,
+    required this.studentId,
+    required this.studentData,
+  });
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return "Unknown";
+    try {
+      if (timestamp is Timestamp) {
+        return DateFormat('dd-MM-yyyy').format(timestamp.toDate());
+      } else if (timestamp is DateTime) {
+        return DateFormat('dd-MM-yyyy').format(timestamp);
+      } else {
+        return timestamp.toString();
+      }
+    } catch (_) {
+      return "Invalid date";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Student Details")),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView(
+          children: [
+            Text(
+              studentData['name'] ?? 'Unnamed',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            if (studentData['email'] != null)
+              ListTile(
+                leading: const Icon(Icons.email),
+                title: Text(studentData['email']),
+              ),
+            if (studentData['phone'] != null)
+              ListTile(
+                leading: const Icon(Icons.phone),
+                title: Text(studentData['phone']),
+              ),
+            if (studentData['course_name'] != null)
+              ListTile(
+                leading: const Icon(Icons.book),
+                title: Text("Course: ${studentData['course_name']}"),
+              ),
+            if (studentData['batch_name'] != null)
+              ListTile(
+                leading: const Icon(Icons.group),
+                title: Text("Batch: ${studentData['batch_name']}"),
+              ),
+            if (studentData['amount_paid'] != null)
+              ListTile(
+                leading: const Icon(Icons.payments),
+                title: Text("Amount Paid: ₹${studentData['amount_paid']}"),
+              ),
+            if (studentData['total_fees'] != null)
+              ListTile(
+                leading: const Icon(Icons.money),
+                title: Text("Total Fees: ₹${studentData['total_fees']}"),
+              ),
+            if (studentData['enrollment_date'] != null)
+              ListTile(
+                leading: const Icon(Icons.date_range),
+                title: Text(
+                  "Enrollment Date: ${_formatDate(studentData['enrollment_date'])}",
+                ),
+              ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.assignment_ind),
+              title: Text(
+                "Assigned: ${studentData['assigned'] == true ? 'Yes' : 'No'}",
+              ),
+            ),
+            // ✅ Tutor details if assigned
+            if (studentData['tutorId'] != null)
+              FutureBuilder<DocumentSnapshot>(
+                future:
+                    FirebaseFirestore.instance
+                        .collection('tutors')
+                        .doc(studentData['tutorId'])
+                        .get(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || !snapshot.data!.exists) {
+                    return const ListTile(
+                      leading: Icon(Icons.person_off),
+                      title: Text("Tutor not found"),
+                    );
+                  }
+                  final tutorData =
+                      snapshot.data!.data() as Map<String, dynamic>;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Divider(),
+                      const Text(
+                        "Assigned Tutor",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.person),
+                        title: Text(tutorData['name'] ?? "No name"),
+                        subtitle: Text("Course: ${tutorData['course'] ?? ''}"),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('student_enroll_details')
+                      .doc(studentId)
+                      .delete();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Student deleted successfully"),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Failed to delete student: $e")),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.delete),
+              label: const Text("Delete Student"),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            ),
+          ],
         ),
       ),
     );

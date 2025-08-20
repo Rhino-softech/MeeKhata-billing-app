@@ -38,11 +38,8 @@ class _CoursesPageState extends State<CoursesPage> {
 
     final courseSnap =
         await FirebaseFirestore.instance
-            .collection('courses') // ✅ fixed
-            .where(
-              'institute_id',
-              isEqualTo: userUid,
-            ) // ✅ adjust to match Firestore
+            .collection('courses')
+            .where('institute_id', isEqualTo: userUid)
             .get();
 
     final enrollSnap =
@@ -67,26 +64,45 @@ class _CoursesPageState extends State<CoursesPage> {
         'collected': 0.0,
         'students': 0,
         'batches': 0,
+        'remaining': 0.0,
       };
 
-      stats[courseName]!['totalFee'] += totalFees;
-      stats[courseName]!['collected'] += amountPaid;
-      stats[courseName]!['students'] += 1;
+      stats[courseName]!['totalFee'] =
+          (stats[courseName]!['totalFee'] ?? 0.0) + totalFees;
+      stats[courseName]!['collected'] =
+          (stats[courseName]!['collected'] ?? 0.0) + amountPaid;
+      stats[courseName]!['students'] =
+          (stats[courseName]!['students'] ?? 0) + 1;
+      stats[courseName]!['remaining'] =
+          (stats[courseName]!['totalFee'] ?? 0.0) -
+          (stats[courseName]!['collected'] ?? 0.0);
     }
 
-    // Collect course data
+    // Collect course + batch data
     for (var doc in courseSnap.docs) {
       final data = doc.data();
       final name = data['name'] ?? 'Unknown';
-      final count = data['count'] ?? 0;
 
       stats[name] ??= {
         'totalFee': 0.0,
         'collected': 0.0,
         'students': 0,
         'batches': 0,
+        'remaining': 0.0,
       };
-      stats[name]!['batches'] = count;
+
+      // ✅ Query batches for this course
+      final batchSnap =
+          await FirebaseFirestore.instance
+              .collection('batches')
+              .where('course_name', isEqualTo: name)
+              .where('created_by', isEqualTo: userUid)
+              .get();
+
+      stats[name]!['batches'] = batchSnap.docs.length;
+      stats[name]!['remaining'] =
+          (stats[name]!['totalFee'] ?? 0.0) -
+          (stats[name]!['collected'] ?? 0.0);
     }
 
     final result =
@@ -95,10 +111,11 @@ class _CoursesPageState extends State<CoursesPage> {
           final data = entry.value;
           return {
             'name': name,
-            'students': data['students'],
-            'totalFee': data['totalFee'],
-            'collected': data['collected'],
-            'batches': data['batches'],
+            'students': data['students'] ?? 0,
+            'totalFee': data['totalFee'] ?? 0.0,
+            'collected': data['collected'] ?? 0.0,
+            'remaining': data['remaining'] ?? 0.0,
+            'batches': data['batches'] ?? 0,
           };
         }).toList();
 
@@ -153,9 +170,10 @@ class _CoursesPageState extends State<CoursesPage> {
                 itemBuilder: (context, index) {
                   final course = courses[index];
                   final double percentage =
-                      course['totalFee'] == 0
+                      (course['totalFee'] ?? 0.0) == 0
                           ? 0.0
-                          : course['collected'] / course['totalFee'];
+                          : (course['collected'] ?? 0.0) /
+                              (course['totalFee'] ?? 1.0);
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -181,7 +199,7 @@ class _CoursesPageState extends State<CoursesPage> {
                           children: [
                             Expanded(
                               child: Text(
-                                course['name'],
+                                course['name'] ?? 'Unknown',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -230,7 +248,7 @@ class _CoursesPageState extends State<CoursesPage> {
                                 children: [
                                   TextSpan(
                                     text:
-                                        '₹${formatCurrency.format(course['totalFee'])}',
+                                        '₹${formatCurrency.format(course['totalFee'] ?? 0)}',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -251,11 +269,32 @@ class _CoursesPageState extends State<CoursesPage> {
                                 children: [
                                   TextSpan(
                                     text:
-                                        '₹${formatCurrency.format(course['collected'])}',
+                                        '₹${formatCurrency.format(course['collected'] ?? 0)}',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            RichText(
+                              text: TextSpan(
+                                text: 'Remaining\n',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '₹${formatCurrency.format(course['remaining'] ?? 0)}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red,
                                     ),
                                   ),
                                 ],

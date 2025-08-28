@@ -28,12 +28,45 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
+      // 🔹 Step 1: Check tutors collection first
+      final tutorQuery =
+          await _firestore
+              .collection('tutors')
+              .where('email', isEqualTo: _emailController.text.trim())
+              .limit(1)
+              .get();
+
+      if (tutorQuery.docs.isNotEmpty) {
+        final tutorDoc = tutorQuery.docs.first;
+        final tutorData = tutorDoc.data();
+
+        if (tutorData['password'] == _passwordController.text) {
+          // ✅ Password matched for tutor
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => AttendancePage(
+                    loggedInUid: tutorDoc.id, // using tutor document ID
+                  ),
+            ),
+          );
+          return; // stop here
+        } else {
+          setState(() {
+            _error = "Invalid password for tutor account";
+          });
+          setState(() => _loading = false);
+          return;
+        }
+      }
+
+      // 🔹 Step 2: If not tutor, try Firebase Auth + user_details (for institute)
       final credential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      // 🔹 Get logged in UID
       final String loggedInUid = credential.user!.uid;
 
       final userDoc =
@@ -50,16 +83,6 @@ class _LoginPageState extends State<LoginPage> {
               builder:
                   (_) => DashboardPage(
                     loggedInUid: loggedInUid, // ✅ Passing UID only
-                  ),
-            ),
-          );
-        } else if (role == 'tutor') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (_) => AttendancePage(
-                    loggedInUid: loggedInUid, // ✅ Passing UID
                   ),
             ),
           );

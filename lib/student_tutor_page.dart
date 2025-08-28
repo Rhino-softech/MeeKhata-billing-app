@@ -119,27 +119,12 @@ class _StudentPageState extends State<StudentPage> {
                                 // ✅ Show "Assign" button only if student is NOT assigned
                                 if (!showAssigned)
                                   ElevatedButton.icon(
-                                    onPressed: () async {
-                                      try {
-                                        await FirebaseFirestore.instance
-                                            .collection(
-                                              'student_enroll_details',
-                                            )
-                                            .doc(studentDoc.id)
-                                            .update({'assigned': true});
-                                        if (!mounted) return;
-                                      } catch (e) {
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Failed to assign student: $e',
-                                            ),
-                                          ),
-                                        );
-                                      }
+                                    onPressed: () {
+                                      _showTutorAssignDialog(
+                                        context,
+                                        studentDoc.id,
+                                        data,
+                                      );
                                     },
                                     icon: const Icon(Icons.add),
                                     label: const Text("Assign"),
@@ -178,6 +163,99 @@ class _StudentPageState extends State<StudentPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // ✅ Dialog to select tutor
+  void _showTutorAssignDialog(
+    BuildContext context,
+    String studentId,
+    Map<String, dynamic> studentData,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Assign Tutor"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: StreamBuilder<QuerySnapshot>(
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('tutors')
+                      // ✅ FIX: Match student's course_id with tutor.assigned_course_ids
+                      .where(
+                        'assigned_course_ids',
+                        arrayContains: studentData['course_id'],
+                      )
+                      .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Text("No tutors found for this course.");
+                }
+
+                final tutors = snapshot.data!.docs;
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: tutors.length,
+                  itemBuilder: (context, index) {
+                    final tutorDoc = tutors[index];
+                    final tutorData = tutorDoc.data() as Map<String, dynamic>;
+
+                    return ListTile(
+                      leading: const Icon(Icons.person),
+                      title: Text(tutorData['name'] ?? "No name"),
+                      subtitle: Text(
+                        "Email: ${tutorData['email'] ?? ''}\n"
+                        "Institute: ${tutorData['institute']?['name'] ?? 'Unknown'}",
+                      ),
+                      onTap: () async {
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('student_enroll_details')
+                              .doc(studentId)
+                              .update({
+                                'assigned': true,
+                                'tutorId': tutorDoc.id,
+                                // optional: store course for clarity
+                                'course_id': studentData['course_id'],
+                              });
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  "Assigned to ${tutorData['name']}",
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Failed to assign: $e")),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -328,7 +406,10 @@ class StudentDetailPage extends StatelessWidget {
                       ListTile(
                         leading: const Icon(Icons.person),
                         title: Text(tutorData['name'] ?? "No name"),
-                        subtitle: Text("Course: ${tutorData['course'] ?? ''}"),
+                        subtitle: Text(
+                          "Email: ${tutorData['email'] ?? ''}\n"
+                          "Institute: ${tutorData['institute']?['name'] ?? 'Unknown'}",
+                        ),
                       ),
                     ],
                   );

@@ -33,96 +33,85 @@ class _CoursesPageState extends State<CoursesPage> {
     fetchCoursesData();
   }
 
+  /// ✅ Safe number parser (fix for zero issue)
+  double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
   Future<void> fetchCoursesData() async {
     setState(() => isLoading = true);
 
-    final courseSnap =
-        await FirebaseFirestore.instance
-            .collection('courses')
-            .where('institute_id', isEqualTo: userUid)
-            .get();
-
-    final enrollSnap =
-        await FirebaseFirestore.instance
-            .collection('student_enroll_details')
-            .where('created_by', isEqualTo: userUid)
-            .get();
-
-    Map<String, Map<String, dynamic>> stats = {};
-
-    // Collect enrollment data
-    for (var doc in enrollSnap.docs) {
-      final data = doc.data();
-      final courseName = data['course_name'];
-      final totalFees = (data['total_fees'] ?? 0).toDouble();
-      final amountPaid = (data['amount_paid'] ?? 0).toDouble();
-
-      if (courseName == null) continue;
-
-      stats[courseName] ??= {
-        'totalFee': 0.0,
-        'collected': 0.0,
-        'students': 0,
-        'batches': 0,
-        'remaining': 0.0,
-      };
-
-      stats[courseName]!['totalFee'] =
-          (stats[courseName]!['totalFee'] ?? 0.0) + totalFees;
-      stats[courseName]!['collected'] =
-          (stats[courseName]!['collected'] ?? 0.0) + amountPaid;
-      stats[courseName]!['students'] =
-          (stats[courseName]!['students'] ?? 0) + 1;
-      stats[courseName]!['remaining'] =
-          (stats[courseName]!['totalFee'] ?? 0.0) -
-          (stats[courseName]!['collected'] ?? 0.0);
-    }
-
-    // Collect course + batch data
-    for (var doc in courseSnap.docs) {
-      final data = doc.data();
-      final name = data['name'] ?? 'Unknown';
-
-      stats[name] ??= {
-        'totalFee': 0.0,
-        'collected': 0.0,
-        'students': 0,
-        'batches': 0,
-        'remaining': 0.0,
-      };
-
-      // ✅ Query batches for this course
-      final batchSnap =
+    try {
+      // ✅ Fetch student enrollments created by the logged-in user
+      final enrollSnap =
           await FirebaseFirestore.instance
-              .collection('batches')
-              .where('course_name', isEqualTo: name)
-              .where('created_by', isEqualTo: userUid)
+              .collection('student_enroll_details')
+              .where('created_by_uid', isEqualTo: userUid)
               .get();
 
-      stats[name]!['batches'] = batchSnap.docs.length;
-      stats[name]!['remaining'] =
-          (stats[name]!['totalFee'] ?? 0.0) -
-          (stats[name]!['collected'] ?? 0.0);
+      Map<String, Map<String, dynamic>> stats = {};
+
+      // ✅ Collect enrollment data grouped by course_name
+      for (var doc in enrollSnap.docs) {
+        final data = doc.data();
+        final courseName = data['course_name'] ?? 'Unknown';
+
+        final totalFees = _toDouble(data['total_fees']);
+        final amountPaid = _toDouble(data['amount_paid']);
+        final batchName = data['batch_name'] ?? '';
+
+        stats[courseName] ??= {
+          'name': courseName,
+          'totalFee': 0.0,
+          'collected': 0.0,
+          'students': 0,
+          'batchesSet': <String>{}, // unique batches
+        };
+
+        stats[courseName]!['totalFee'] =
+            (stats[courseName]!['totalFee'] ?? 0.0) + totalFees;
+        stats[courseName]!['collected'] =
+            (stats[courseName]!['collected'] ?? 0.0) + amountPaid;
+        stats[courseName]!['students'] =
+            (stats[courseName]!['students'] ?? 0) + 1;
+
+        if (batchName.toString().isNotEmpty) {
+          (stats[courseName]!['batchesSet'] as Set<String>).add(batchName);
+        }
+      }
+
+      // ✅ Prepare final result list
+      final result =
+          stats.entries.map((entry) {
+            final data = entry.value;
+            final totalFee = data['totalFee'] ?? 0.0;
+            final collected = data['collected'] ?? 0.0;
+            final remaining = totalFee - collected;
+            final batchesCount = (data['batchesSet'] as Set<String>).length;
+
+            return {
+              'id': entry.key,
+              'name': data['name'],
+              'students': data['students'] ?? 0,
+              'totalFee': totalFee,
+              'collected': collected,
+              'remaining': remaining,
+              'batches': batchesCount,
+            };
+          }).toList();
+
+      setState(() {
+        courses = result;
+        isLoading = false;
+      });
+    } catch (e) {
+      print("❌ Error fetching course data: $e");
+      setState(() => isLoading = false);
     }
-
-    final result =
-        stats.entries.map((entry) {
-          final name = entry.key;
-          final data = entry.value;
-          return {
-            'name': name,
-            'students': data['students'] ?? 0,
-            'totalFee': data['totalFee'] ?? 0.0,
-            'collected': data['collected'] ?? 0.0,
-            'remaining': data['remaining'] ?? 0.0,
-            'batches': data['batches'] ?? 0,
-          };
-        }).toList();
-
-    setState(() {
-      courses = result;
-      isLoading = false;
-    });
   }
 
   void _openAddCourseDialog() {

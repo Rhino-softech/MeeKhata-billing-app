@@ -22,38 +22,44 @@ class _BatchesPageState extends State<BatchesPage> {
   }
 
   Future<void> fetchBatches() async {
-    final query =
+    final enrollSnap =
         await FirebaseFirestore.instance
-            .collection('course_details')
-            .where('name', isEqualTo: widget.courseName)
+            .collection('student_enroll_details')
+            .where('course_name', isEqualTo: widget.courseName)
             .get();
 
-    if (query.docs.isEmpty) return;
+    if (enrollSnap.docs.isEmpty) {
+      setState(() {
+        batches = [];
+        totalStudents = 0;
+      });
+      return;
+    }
 
-    final doc = query.docs.first;
-    final batchList = List<Map<String, dynamic>>.from(doc['batches']);
+    Map<String, Map<String, dynamic>> batchStats = {};
+    int studentCounter = 0;
 
-    List<Map<String, dynamic>> enrichedBatches = [];
+    for (var doc in enrollSnap.docs) {
+      final data = doc.data();
+      final batchName = data['batch_name'] ?? 'Unknown Batch';
+      final tutor = data['tutor_name'] ?? '';
+      final time = data['batch_time'] ?? '';
 
-    for (var batch in batchList) {
-      final batchName = batch['name'];
-      final studentQuery =
-          await FirebaseFirestore.instance
-              .collection('student_enroll_details')
-              .where('course_name', isEqualTo: widget.courseName)
-              .where('batch_name', isEqualTo: batchName)
-              .get();
+      batchStats[batchName] ??= {
+        'name': batchName,
+        'time': time,
+        'tutor': tutor,
+        'studentCount': 0,
+      };
 
-      batch['studentCount'] = studentQuery.docs.length;
-      enrichedBatches.add(batch);
+      batchStats[batchName]!['studentCount'] =
+          (batchStats[batchName]!['studentCount'] ?? 0) + 1;
+      studentCounter++;
     }
 
     setState(() {
-      batches = enrichedBatches;
-      totalStudents = enrichedBatches.fold(
-        0,
-        (sum, b) => sum + ((b['studentCount'] ?? 0) as int),
-      );
+      batches = batchStats.values.toList();
+      totalStudents = studentCounter;
     });
   }
 

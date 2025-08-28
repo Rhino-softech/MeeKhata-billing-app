@@ -18,6 +18,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
   String name = '';
   String email = '';
   String phone = '';
+  String password = ''; // ✅ Added password field
   String? instituteId;
   Map<String, dynamic>? instituteData;
 
@@ -169,6 +170,7 @@ class _AddTutorFormState extends State<AddTutorForm> {
         'name': name,
         'email': email,
         'phone': phone,
+        'password': password, // ✅ Save password in Firestore
         'institute_id': instituteId,
         'institute': instituteData,
         'assigned_course_ids': courses.map((c) => c['courseId']).toList(),
@@ -255,6 +257,13 @@ class _AddTutorFormState extends State<AddTutorForm> {
                     TextFormField(
                       decoration: const InputDecoration(labelText: "Phone"),
                       onChanged: (val) => phone = val,
+                    ),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: "Password",
+                      ), // ✅ New field
+                      obscureText: true,
+                      onChanged: (val) => password = val,
                     ),
 
                     const SizedBox(height: 20),
